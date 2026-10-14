@@ -613,8 +613,8 @@ function render() {
 function ir(v) { vista = v; render(); $('#main').scrollTop = 0; }
 
 /* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
-const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co/rest/v1/';  // Ex: https://abcdefg.supabase.co
-const SUPABASE_KEY = 'sb_secret_YJybm-6req8qK5auTuZtZQ_CKxv-8Xl';  // La clau "anon public" del projecte
+const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co';  // Només el domini, sense /rest/v1/
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcGN2c2RkaXljcWZ5cXN2ZWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMDU2NjksImV4cCI6MjEwNzU4MTY2OX0.fA6AK3VZttA-qBdJjmuQ2vN7Cpdagz2azwHKT8Ik8w4';  // POSA AQUÍ la clau "anon public" (comença per eyJ...), MAI la service_role/secret
 
 const DADES_DEFECTE = () => ({
   ajustes: {
