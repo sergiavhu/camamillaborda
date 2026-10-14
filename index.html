@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' https://*.supabase.co file: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Gestor d'Estudi</title>
+<style>
+:root{
+  --ink:#1b2130; --ink2:#4a5266; --mute:#7b8397;
+  --bg:#eef1f5; --card:#ffffff; --line:#dde2ea; --soft:#f6f8fb;
+  --blue:#2c47d6; --blue-d:#2138a8; --mark:#ffd84a;
+  --ok:#1f8a5b; --bad:#c93a3a; --side:#161b29;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 'Segoe UI',system-ui,sans-serif;color:var(--ink);background:var(--bg);display:flex}
+h1,h2,h3,.num{font-family:Bahnschrift,'Segoe UI Semibold','Segoe UI',sans-serif;font-weight:600;letter-spacing:.2px;margin:0}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:19px}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--mark);outline-offset:1px}
+
+/* Barra lateral */
+#side{width:218px;background:var(--side);color:#c8cedd;padding:22px 14px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.brand{font-family:Bahnschrift,'Segoe UI Semibold',sans-serif;font-size:19px;color:#fff;padding:2px 12px 18px;line-height:1.15}
+.brand span{display:block;font:12px 'Segoe UI',sans-serif;color:#8b93a8;margin-top:3px}
+.nav{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:none;color:inherit;cursor:pointer}
+.nav:hover{background:#232a3d}
+.nav.on{background:var(--mark);color:#1b2130;font-weight:600}
+.nav svg{width:18px;height:18px;flex:none}
+.sp{flex:1}
+
+#main{flex:1;overflow:auto;padding:28px 36px 50px}
+.top{margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.top p{color:var(--ink2);margin-top:6px}
+
+/* Controles */
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:#b9c1d0}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.pri:hover{background:var(--blue-d)}
+.btn.bad{color:var(--bad)}
+.btn.sm{padding:4px 10px;font-weight:500;font-size:13px}
+.x{border:0;background:none;color:var(--mute);cursor:pointer;font-size:17px;line-height:1;padding:2px 6px;border-radius:5px}
+.x:hover{background:#fde8e8;color:var(--bad)}
+input,select,textarea{border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);outline:2px solid #c9d2fb}
+textarea{resize:vertical;min-height:64px}
+label{display:block;font-weight:600;font-size:13px;color:var(--ink2);margin-bottom:4px}
+.f{margin-bottom:12px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
+.card h2{margin-bottom:14px}
+.scroll{overflow-x:auto}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.row .grow{flex:1;min-width:160px}
+.mute{color:var(--mute)}
+.r{text-align:right}
+.c{text-align:center}
+.empty{padding:34px 10px;text-align:center;color:var(--mute)}
+.warn{background:#fff6d6;border:1px solid #f0d878;border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+
+/* Tablas */
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-weight:600;color:var(--ink2);font-size:13px;background:var(--soft);white-space:nowrap}
+tfoot td{font-weight:700;background:var(--soft);border-bottom:0}
+td.r,th.r{text-align:right}
+td.c,th.c{text-align:center}
+tbody tr:hover{background:#fafbfd}
+
+/* Inventario */
+.inv td.tn{font-weight:600;min-width:150px}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.step button{width:32px;height:34px;border:0;background:var(--soft);cursor:pointer;font-size:18px;font-weight:600}
+.step button:hover{background:var(--mark)}
+.step input{width:64px;border:0;border-radius:0;text-align:center;font-weight:700;font-size:16px;padding:6px 2px;-moz-appearance:textfield}
+.step input::-webkit-inner-spin-button{display:none}
+.inv .tot{font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:18px;font-weight:600}
+
+/* Inicio */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;max-width:940px}
+.tile{display:block;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.tile:hover{border-color:var(--blue);box-shadow:0 0 0 3px #dbe1fb}
+.tile .num{font-size:38px;line-height:1;display:block;margin-bottom:8px}
+.tile h2{margin-bottom:4px}
+.tile p{color:var(--ink2)}
+.tile.main{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tile.main p{color:#b9c0d2}
+.tile.main:hover{box-shadow:0 0 0 3px var(--mark);border-color:var(--ink)}
+.tile.main .num{color:var(--mark)}
+
+/* Resumen */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px}
+.chip:hover{border-color:var(--blue)}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.kpi .num{font-size:28px;display:block;margin-top:4px}
+.kpi.pos .num{color:var(--ok)} .kpi.neg .num{color:var(--bad)}
+.mini{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.mini div{padding:10px 12px;border-left:3px solid var(--mark);background:var(--card);border-radius:0 8px 8px 0}
+.mini b{display:block;font-size:16px}
+.bars{display:grid;grid-template-columns:70px 1fr 110px;gap:6px 12px;align-items:center}
+.bar{height:12px;border-radius:3px;min-width:2px}
+.bar.i{background:var(--blue)} .bar.g{background:var(--mark);margin-top:3px}
+.leg{display:flex;gap:16px;font-size:13px;color:var(--ink2);margin-bottom:12px}
+.leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* Factura */
+.lines td{padding:6px 6px;border-bottom:0}
+.lines th{padding:6px}
+.tots{margin-left:auto;width:320px}
+.tots div{display:flex;justify-content:space-between;padding:5px 0}
+.tots .big{border-top:2px solid var(--ink);margin-top:6px;padding-top:10px;font-size:19px;font-weight:700}
+.thumb{width:46px;height:46px;object-fit:cover;border-radius:7px;border:1px solid var(--line);cursor:zoom-in;background:var(--soft)}
+.pdfico{width:46px;height:46px;border-radius:7px;border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;background:var(--soft);font-weight:700;color:var(--bad)}
+
+#modal{display:none;position:fixed;inset:0;background:rgba(15,20,32,.82);z-index:20;align-items:center;justify-content:center;padding:30px;cursor:zoom-out}
+#modal.on{display:flex}
+#modal img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;z-index:30;display:none;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+#toast.err{background:var(--bad)}
+@media (max-width:1000px){.g4,.mini{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}}
+@media (max-width:700px){
+  body{flex-direction:column}
+  #side{width:100%;padding:8px 10px;flex-direction:row;overflow-x:auto;gap:2px;flex-shrink:0}
+  .brand{display:none}
+  .nav{padding:8px 10px;font-size:12px;white-space:nowrap}
+  .nav svg{width:16px;height:16px}
+  .sp{display:none}
+  #main{padding:16px 14px 40px}
+  .top{flex-direction:column;align-items:stretch;gap:10px}
+  .top h1{font-size:22px}
+  .tiles{grid-template-columns:1fr}
+  .g2,.g3,.g4,.mini{grid-template-columns:1fr}
+  .tile .num{font-size:28px}
+  .tots{width:100%!important}
+  .row{flex-direction:column;align-items:stretch}
+  .row .grow{min-width:0}
+  table{font-size:13px}
+  th,td{padding:8px 6px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<aside id="side">
+  <div class="brand">Gestor d'Estudi<span>Il·lustració · autònom</span></div>
+  <button class="nav" data-a="ir" data-v="inicio" data-n><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10H3z"/></svg>Inici</button>
+  <button class="nav" data-a="ir" data-v="inventario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10"/></svg>Inventari</button>
+  <button class="nav" data-a="ir" data-v="facturas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z M14 2v6h6 M9 13h8 M9 17h8"/></svg>Factures</button>
+  <button class="nav" data-a="ir" data-v="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18 M7 15h4"/></svg>Despeses</button>
+  <button class="nav" data-a="ir" data-v="resumen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10 M10 20V4 M16 20v-8 M22 20H2"/></svg>Resum</button>
+  <div class="sp"></div>
+  <button class="nav" data-a="ir" data-v="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Les meves dades</button>
+</aside>
+<main id="main"></main>
+<div id="modal" data-a="cerrarModal"></div>
+<div id="toast"></div>
+
+<script>
+/* ============ Utilidades ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const eur = n => new Intl.NumberFormat('ca-ES',{style:'currency',currency:'EUR'}).format(n || 0);
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+const uid = () => Math.random().toString(36).slice(2, 9);
+const isoDe = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const hoy = () => isoDe(new Date());
+const fecha = iso => iso ? iso.split('-').reverse().join('/') : '';
+const num = v => parseFloat(String(v).replace(',', '.')) || 0;
+
+let D, IMGURL, vista = 'inicio', borrador = null;
+let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
+let rango = null;
+
+function toast(msg, tipo) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = tipo === 'err' ? 'err' : ''; t.style.display = 'block';
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 2800);
+}
+const guardar = () => api.guardar(D);
+
+/* ============ Inventario: helpers ============ */
+const getS = (t, l) => (D.stock[t] && D.stock[t][l]) || 0;
+function setS(t, l, n) {
+  D.stock[t] = D.stock[t] || {};
+  D.stock[t][l] = Math.max(0, Math.floor(n) || 0);
+}
+const totalTipo = t => D.lugares.reduce((s, l) => s + getS(t.id, l.id), 0);
+const totalLugar = l => D.tipos.reduce((s, t) => s + getS(t.id, l.id), 0);
+const totalTodo = () => D.tipos.reduce((s, t) => s + totalTipo(t), 0);
+
+/* ============ Factura: cálculos ============ */
+function calc(f) {
+  const base = r2(f.lineas.reduce((s, l) => s + num(l.cant) * num(l.precio), 0));
+  const iva = r2(base * num(f.iva) / 100);
+  const irpf = r2(base * num(f.irpf) / 100);
+  return { base, iva, irpf, total: r2(base + iva - irpf) };
+}
+function siguienteNumero() {
+  const y = new Date().getFullYear();
+  const nums = D.facturas.map(f => f.numero).filter(n => n.startsWith(y + '-')).map(n => parseInt(n.split('-')[1]) || 0);
+  return y + '-' + String(Math.max(0, ...nums) + 1).padStart(3, '0');
+}
+
+/* ============ Vistas ============ */
+function vInicio() {
+  const y = String(new Date().getFullYear());
+  const facY = D.facturas.filter(f => f.fecha.startsWith(y));
+  const gasY = D.gastos.filter(g => g.fecha.startsWith(y));
+  return `
+  <header class="top"><div><h1>Bon dia</h1><p>Què vols fer avui?</p></div></header>
+  <div class="tiles">
+    <button class="tile main" data-a="ir" data-v="inventario"><span class="num">${totalTodo()}</span><h2>Inventari</h2><p>il·lustracions repartides en ${D.lugares.length} llocs</p></button>
+    <button class="tile main" data-a="nuevaFactura"><span class="num">+</span><h2>Nova factura</h2><p>Omple el formulari i descarrega-la en PDF</p></button>
+    <button class="tile" data-a="ir" data-v="gastos"><span class="num">${eur(gasY.reduce((s, g) => s + num(g.importe), 0))}</span><h2>Despeses de ${y}</h2><p>${gasY.length} registrades · afegeix un tiquet amb foto</p></button>
+    <button class="tile" data-a="ir" data-v="resumen"><span class="num">${eur(facYTotal(facY))}</span><h2>Facturat el ${y}</h2><p>${facY.length} factures · veure resum per dates</p></button>
+  </div>`;
+}
+const facYTotal = fs => fs.reduce((s, f) => s + calc(f).total, 0);
+
+function vInventario() {
+  const L = D.lugares, T = D.tipos;
+  const tabla = T.length && L.length ? `
+  <div class="card scroll"><table class="inv"><thead><tr><th>Tipus d'il·lustració</th>
+    ${L.map(l => `<th class="c">${esc(l.nombre)} <button class="x" data-a="delLugar" data-l="${l.id}" title="Treure aquest lloc">×</button></th>`).join('')}
+    <th class="c">Total</th><th></th></tr></thead>
+  <tbody>${T.map(t => `<tr><td class="tn">${esc(t.nombre)}</td>
+    ${L.map(l => `<td class="c"><div class="step">
+      <button data-a="menos" data-t="${t.id}" data-l="${l.id}" aria-label="Treure'n un">−</button>
+      <input type="number" min="0" value="${getS(t.id, l.id)}" data-a="setStock" data-t="${t.id}" data-l="${l.id}" aria-label="${esc(t.nombre)} a ${esc(l.nombre)}">
+      <button data-a="mas" data-t="${t.id}" data-l="${l.id}" aria-label="Afegir-ne un">+</button></div></td>`).join('')}
+    <td class="c tot">${totalTipo(t)}</td>
+    <td><button class="x" data-a="delTipo" data-t="${t.id}" title="Treure aquest tipus">×</button></td></tr>`).join('')}</tbody>
+  <tfoot><tr><td>Total per lloc</td>${L.map(l => `<td class="c">${totalLugar(l)}</td>`).join('')}<td class="c">${totalTodo()}</td><td></td></tr></tfoot>
+  </table></div>` : `<div class="card empty">Afegeix almenys un tipus d'il·lustració i un lloc per començar a comptar.</div>`;
+  return `
+  <header class="top"><div><h1>Inventari</h1><p>Quantes il·lustracions de cada tipus tens a cada lloc. Els canvis es guarden sols.</p></div></header>
+  ${tabla}
+  <div class="grid g2">
+    <div class="card"><h2>Afegir tipus d'il·lustració</h2><div class="row"><div class="grow"><label for="nTipo">Nom</label><input id="nTipo" placeholder="Ex. Làmines A5" data-enter="#bTipo"></div><button class="btn pri" id="bTipo" data-a="addTipo">Afegir tipus</button></div></div>
+    <div class="card"><h2>Afegir lloc</h2><div class="row"><div class="grow"><label for="nLugar">Nom</label><input id="nLugar" placeholder="Ex. Fira de Nadal" data-enter="#bLugar"></div><button class="btn pri" id="bLugar" data-a="addLugar">Afegir lloc</button></div></div>
+  </div>`;
+}
+
+function vFacturas() {
+  const lista = [...D.facturas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero));
+  return `
+  <header class="top"><div><h1>Factures</h1><p>Totes les factures que has creat.</p></div><button class="btn pri" data-a="nuevaFactura">+ Nova factura</button></header>
+  ${avisoDatos()}
+  <div class="card scroll">${lista.length ? `<table><thead><tr><th>Núm.</th><th>Data</th><th>Client</th><th class="r">Base</th><th class="r">Total</th><th></th></tr></thead><tbody>
+    ${lista.map(f => { const c = calc(f); return `<tr><td><b>${esc(f.numero)}</b></td><td>${fecha(f.fecha)}</td><td>${esc(f.cliente.nombre)}</td><td class="r">${eur(c.base)}</td><td class="r"><b>${eur(c.total)}</b></td>
+      <td class="r" style="white-space:nowrap"><button class="btn sm" data-a="editarFactura" data-id="${f.id}">Obrir</button> <button class="btn sm" data-a="pdfFactura" data-id="${f.id}">PDF</button> <button class="x" data-a="delFactura" data-id="${f.id}" title="Eliminar">×</button></td></tr>`; }).join('')}
+    </tbody></table>` : `<div class="empty">Encara no hi ha factures. Crea la primera amb «Nova factura».</div>`}</div>`;
+}
+function avisoDatos() {
+  const e = D.ajustes.emisor;
+  return (e.nombre && e.nif) ? '' : `<div class="warn"><span>Falten les teves dades fiscals (nom i NIF). Apareixeran a la capçalera de cada factura.</span><button class="btn sm" data-a="ir" data-v="datos">Completar les meves dades</button></div>`;
+}
+
+function vForm() {
+  const f = borrador;
+  const clientes = [...new Set(D.facturas.map(x => x.cliente.nombre))];
+  return `
+  <header class="top"><div><h1>${f.nuevo ? 'Nova factura' : 'Factura ' + esc(f.numero)}</h1><p>Omple els camps i desa. Pots descarregar-la en PDF per enviar-la al client.</p></div></header>
+  ${avisoDatos()}
+  <div class="card"><h2>Dades de la factura</h2><div class="grid g3">
+    <div><label for="fNum">Núm. de factura</label><input id="fNum" data-f="numero" value="${esc(f.numero)}"></div>
+    <div><label for="fFec">Data</label><input id="fFec" type="date" data-f="fecha" value="${esc(f.fecha)}"></div>
+    <div><label for="fPago">Forma de pagament / venciment</label><input id="fPago" data-f="pago" value="${esc(f.pago)}" placeholder="Transferència a 30 dies"></div>
+  </div></div>
+  <div class="card"><h2>Client</h2><div class="grid g2">
+    <div><label for="cNom">Nom o raó social</label><input id="cNom" data-c="nombre" list="listaClientes" value="${esc(f.cliente.nombre)}"><datalist id="listaClientes">${clientes.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+    <div><label for="cNif">NIF / CIF</label><input id="cNif" data-c="nif" value="${esc(f.cliente.nif)}"></div>
+    <div><label for="cDir">Adreça</label><textarea id="cDir" data-c="direccion">${esc(f.cliente.direccion)}</textarea></div>
+    <div><label for="cEm">Correu electrònic</label><input id="cEm" data-c="email" value="${esc(f.cliente.email)}"></div>
+  </div></div>
+  <div class="card scroll"><h2>Conceptes</h2>
+    <table class="lines"><thead><tr><th>Descripció</th><th style="width:90px">Quantitat</th><th style="width:120px">Preu unitat</th><th class="r" style="width:120px">Import</th><th style="width:40px"></th></tr></thead><tbody>
+    ${f.lineas.map((l, i) => `<tr><td><input data-l="${i}" data-k="desc" value="${esc(l.desc)}" placeholder="Ex. Il·lustració de portada"></td>
+      <td><input type="number" step="any" min="0" data-l="${i}" data-k="cant" value="${esc(l.cant)}"></td>
+      <td><input type="number" step="any" data-l="${i}" data-k="precio" value="${esc(l.precio)}"></td>
+      <td class="r" id="imp-${i}">${eur(num(l.cant) * num(l.precio))}</td>
+      <td><button class="x" data-a="delLinea" data-i="${i}" title="Treure línia">×</button></td></tr>`).join('')}
+    </tbody></table>
+    <p style="margin-top:8px"><button class="btn sm" data-a="addLinea">+ Afegir concepte</button></p>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>Impostos i notes</h2><div class="grid g2">
+      <div><label for="fIva">IVA (%)</label><input id="fIva" type="number" step="any" min="0" data-f="iva" value="${esc(f.iva)}"></div>
+      <div><label for="fIrpf">Retenció IRPF (%)</label><input id="fIrpf" type="number" step="any" min="0" data-f="irpf" value="${esc(f.irpf)}"></div>
+    </div><div class="f" style="margin-top:12px"><label for="fNot">Notes per al client</label><textarea id="fNot" data-f="notas" placeholder="Ex. Operació exempta d'IVA segons art. …">${esc(f.notas)}</textarea></div></div>
+    <div class="card"><h2>Totals</h2><div class="tots" style="width:100%" id="tot"></div></div>
+  </div>
+  <div class="row"><button class="btn pri" data-a="guardarFactura">Desar factura</button><button class="btn pri" data-a="guardarPdf">Desar i crear PDF</button><button class="btn" data-a="ir" data-v="facturas">Cancel·lar</button></div>`;
+}
+function updTotales() {
+  const c = calc(borrador);
+  const t = $('#tot'); if (!t) return;
+  t.innerHTML = `<div><span>Base imposable</span><span>${eur(c.base)}</span></div>
+    <div><span>IVA (${num(borrador.iva)}%)</span><span>${eur(c.iva)}</span></div>
+    ${c.irpf ? `<div><span>Retenció IRPF (${num(borrador.irpf)}%)</span><span>−${eur(c.irpf)}</span></div>` : ''}
+    <div class="big"><span>Total a pagar</span><span>${eur(c.total)}</span></div>`;
+  borrador.lineas.forEach((l, i) => { const e = $('#imp-' + i); if (e) e.textContent = eur(num(l.cant) * num(l.precio)); });
+}
+
+function vGastos() {
+  const g = gastoNuevo; if (!g.fecha) g.fecha = hoy();
+  const cats = [...new Set(['Materials', 'Paper', 'Pintura i tinta', 'Programari', 'Enviaments', 'Altres', ...D.gastos.map(x => x.categoria).filter(Boolean)])];
+  const lista = [...D.gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const miniatura = n => !n ? '<div class="thumb"></div>' : /\.pdf$/i.test(n)
+    ? `<div class="pdfico" data-a="abrirArchivo" data-n="${esc(n)}" title="Obrir PDF">PDF</div>`
+    : `<img class="thumb" src="${IMGURL}/${encodeURIComponent(n)}" data-a="verImagen" data-n="${esc(n)}" alt="Tiquet">`;
+  return `
+  <header class="top"><div><h1>Despeses</h1><p>Desa cada compra de materials amb la seva foto i descripció.</p></div></header>
+  <div class="card"><h2>Nova despesa</h2>
+    <div class="grid g4">
+      <div><label for="gFec">Data</label><input id="gFec" type="date" data-g="fecha" value="${esc(g.fecha)}"></div>
+      <div style="grid-column:span 2"><label for="gCon">Descripció</label><input id="gCon" data-g="concepto" value="${esc(g.concepto)}" placeholder="Ex. Aquarel·les i paper de 300 g"></div>
+      <div><label for="gCat">Categoria</label><input id="gCat" data-g="categoria" list="cats" value="${esc(g.categoria)}"><datalist id="cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      <div><label for="gImp">Import total (€)</label><input id="gImp" type="number" step="0.01" min="0" data-g="importe" value="${esc(g.importe)}"></div>
+      <div><label for="gIva">Dels quals IVA (€) <span class="mute" style="font-weight:400">opcional</span></label><input id="gIva" type="number" step="0.01" min="0" data-g="iva" value="${esc(g.iva)}"></div>
+      <div style="grid-column:span 2"><label>Foto o tiquet</label><div class="row" style="align-items:center">
+        <button class="btn" data-a="elegirImagen">${g.imagen ? 'Canviar imatge' : 'Pujar imatge…'}</button>
+        ${g.imagen ? `<span>${miniatura(g.imagen)}</span><button class="x" data-a="quitarImagenNueva" title="Treure imatge">×</button>` : '<span class="mute">Imatge o PDF del tiquet</span>'}</div></div>
+    </div>
+    <p style="margin-top:14px"><button class="btn pri" data-a="addGasto">Desar despesa</button></p>
+  </div>
+  <div class="card scroll"><h2>Despeses registrades</h2>
+  ${lista.length ? `<table><thead><tr><th></th><th>Data</th><th>Descripció</th><th>Categoria</th><th class="r">Import</th><th></th></tr></thead><tbody>
+    ${lista.map(x => `<tr><td>${miniatura(x.imagen)}</td><td>${fecha(x.fecha)}</td><td>${esc(x.concepto)}</td><td>${esc(x.categoria)}</td><td class="r"><b>${eur(num(x.importe))}</b></td>
+    <td><button class="x" data-a="delGasto" data-id="${x.id}" title="Eliminar">×</button></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe), 0))}</td><td></td></tr></tfoot></table>`
+  : `<div class="empty">Encara no has registrat despeses.</div>`}</div>`;
+}
+
+function presetRango(p) {
+  const n = new Date(), y = n.getFullYear(), m = n.getMonth(), f = (a, b, c) => new Date(a, b, c);
+  let a, b;
+  if (p === 'mes') { a = f(y, m, 1); b = f(y, m + 1, 0); }
+  else if (p === 'mesAnt') { a = f(y, m - 1, 1); b = f(y, m, 0); }
+  else if (p === 'trim') { const q = Math.floor(m / 3) * 3; a = f(y, q, 1); b = f(y, q + 3, 0); }
+  else if (p === 'trimAnt') { const q = Math.floor(m / 3) * 3 - 3; a = f(y, q, 1); b = f(y, q + 3, 0); }
+  else if (p === 'anio') { a = f(y, 0, 1); b = f(y, 11, 31); }
+  else return { desde: '', hasta: '' };
+  return { desde: isoDe(a), hasta: isoDe(b) };
+}
+
+function vResumen() {
+  if (!rango) rango = presetRango('trim');
+  const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+  const facs = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const gas = D.gastos.filter(g => en(g.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const S = facs.reduce((s, f) => { const c = calc(f); s.base += c.base; s.iva += c.iva; s.irpf += c.irpf; s.total += c.total; return s; }, { base: 0, iva: 0, irpf: 0, total: 0 });
+  const gTot = gas.reduce((s, g) => s + num(g.importe), 0);
+  const gIva = gas.reduce((s, g) => s + num(g.iva), 0);
+  const gBase = gTot - gIva;
+  const benef = S.base - gBase;
+
+  const meses = {};
+  facs.forEach(f => { const k = f.fecha.slice(0, 7); (meses[k] = meses[k] || { i: 0, g: 0 }).i += calc(f).base; });
+  gas.forEach(g => { const k = g.fecha.slice(0, 7); (meses[k] = meses[k] || { i: 0, g: 0 }).g += num(g.importe) - num(g.iva); });
+  const claves = Object.keys(meses).sort();
+  const max = Math.max(1, ...claves.map(k => Math.max(meses[k].i, meses[k].g)));
+  const nomMes = k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString('ca-ES', { month: 'short', year: '2-digit' }); };
+
+  const chip = (p, t) => `<button class="chip" data-a="preset" data-p="${p}">${t}</button>`;
+  return `
+  <header class="top"><div><h1>Resum</h1><p>Factures i despeses del període que triïs.</p></div></header>
+  <div class="card">
+    <div class="row"><div><label for="rDes">Des de</label><input id="rDes" type="date" data-r="desde" value="${esc(rango.desde)}"></div>
+    <div><label for="rHas">Fins a</label><input id="rHas" type="date" data-r="hasta" value="${esc(rango.hasta)}"></div></div>
+    <div class="chips">${chip('mes', 'Aquest mes')}${chip('mesAnt', 'Mes anterior')}${chip('trim', 'Aquest trimestre')}${chip('trimAnt', 'Trimestre anterior')}${chip('anio', 'Aquest any')}${chip('todo', 'Tot')}</div>
+  </div>
+  <div class="grid g3" style="margin-bottom:18px">
+    <div class="kpi"><span>Facturat (amb IVA, després d'IRPF)</span><span class="num">${eur(S.total)}</span><span class="mute">${facs.length} factures</span></div>
+    <div class="kpi"><span>Despeses</span><span class="num">${eur(gTot)}</span><span class="mute">${gas.length} registres</span></div>
+    <div class="kpi ${benef >= 0 ? 'pos' : 'neg'}"><span>Benefici (ingressos − despeses, sense IVA)</span><span class="num">${eur(benef)}</span><span class="mute">orientatiu</span></div>
+  </div>
+  <div class="mini">
+    <div><span class="mute">Base imposable</span><b>${eur(S.base)}</b></div>
+    <div><span class="mute">IVA repercutit</span><b>${eur(S.iva)}</b></div>
+    <div><span class="mute">IVA suportat</span><b>${eur(gIva)}</b></div>
+    <div><span class="mute">IVA a liquidar</span><b>${eur(S.iva - gIva)}</b></div>
+    <div><span class="mute">IRPF retingut</span><b>${eur(S.irpf)}</b></div>
+  </div>
+  <div class="card"><h2>Mes a mes</h2>
+  ${claves.length ? `<div class="leg"><span><i style="background:var(--blue)"></i>Ingressos</span><span><i style="background:var(--mark)"></i>Despeses</span></div><div class="bars">
+    ${claves.map(k => `<span>${nomMes(k)}</span><div><div class="bar i" style="width:${meses[k].i / max * 100}%"></div><div class="bar g" style="width:${meses[k].g / max * 100}%"></div></div><span class="r">${eur(meses[k].i)}<br><span class="mute">${eur(meses[k].g)}</span></span>`).join('')}</div>`
+  : '<div class="empty">No hi ha dades en aquest període.</div>'}</div>
+  <div class="grid g2">
+    <div class="card scroll"><h2>Factures del període</h2>${facs.length ? `<table><thead><tr><th>Núm.</th><th>Client</th><th class="r">Total</th></tr></thead><tbody>${facs.map(f => `<tr><td>${esc(f.numero)}<br><span class="mute">${fecha(f.fecha)}</span></td><td>${esc(f.cliente.nombre)}</td><td class="r">${eur(calc(f).total)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sense factures.</div>'}</div>
+    <div class="card scroll"><h2>Despeses del període</h2>${gas.length ? `<table><thead><tr><th>Descripció</th><th class="r">Import</th></tr></thead><tbody>${gas.map(g => `<tr><td>${esc(g.concepto)}<br><span class="mute">${fecha(g.fecha)}${g.categoria ? ' · ' + esc(g.categoria) : ''}</span></td><td class="r">${eur(num(g.importe))}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sense despeses.</div>'}</div>
+  </div>`;
+}
+
+function vDatos() {
+  const e = D.ajustes.emisor, a = D.ajustes;
+  const inp = (id, lbl, path, val, extra = '') => `<div class="f"><label for="${id}">${lbl}</label><input id="${id}" data-s="${path}" value="${esc(val)}" ${extra}></div>`;
+  return `
+  <header class="top"><div><h1>Les meves dades</h1><p>Apareixen a la capçalera de les teves factures. Es desen en sortir de cada camp.</p></div></header>
+  <div class="grid g2">
+    <div class="card"><h2>Dades fiscals</h2>
+      ${inp('eNom', 'Nom i cognoms', 'emisor.nombre', e.nombre)}
+      ${inp('eNif', 'NIF', 'emisor.nif', e.nif)}
+      <div class="f"><label for="eDir">Adreça</label><textarea id="eDir" data-s="emisor.direccion">${esc(e.direccion)}</textarea></div>
+      ${inp('eEm', 'Correu electrònic', 'emisor.email', e.email)}
+      ${inp('eTel', 'Telèfon', 'emisor.telefono', e.telefono)}
+      ${inp('eIban', 'IBAN per a cobraments', 'emisor.iban', e.iban)}
+    </div>
+    <div>
+      <div class="card"><h2>Valors per defecte</h2><div class="grid g2">
+        ${inp('aIva', 'IVA (%)', 'iva', a.iva, 'type="number" step="any"')}
+        ${inp('aIrpf', 'Retenció IRPF (%)', 'irpf', a.irpf, 'type="number" step="any"')}
+      </div><div class="f"><label for="aNot">Text al peu de cada factura</label><textarea id="aNot" data-s="notas" placeholder="Ex. Gràcies per la teva confiança.">${esc(a.notas)}</textarea></div></div>
+      <div class="card"><h2>Les teves dades a l'ordinador</h2><p class="mute" style="margin-bottom:12px">Tot es desa al teu equip. Es fa una còpia automàtica diària (últims 7 dies).</p><button class="btn" data-a="abrirCarpeta">Obrir carpeta de dades</button></div>
+    </div>
+  </div>`;
+}
+
+/* ============ PDF de factura ============ */
+function facturaHTML(f) {
+  const e = D.ajustes.emisor, c = calc(f);
+  const br = s => esc(s).replace(/\n/g, '<br>');
+  return `<!DOCTYPE html><html lang="ca"><head><meta charset="utf-8"><style>
+  @page{size:A4;margin:16mm 15mm}
+  *{box-sizing:border-box}
+  body{font:10.5pt/1.45 'Segoe UI',Arial,sans-serif;color:#1b2130;margin:0}
+  .cab{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1b2130;padding-bottom:14px;margin-bottom:22px}
+  h1{font:600 26pt Bahnschrift,'Segoe UI',sans-serif;margin:0;letter-spacing:.5px}
+  .meta{text-align:right;line-height:1.6}
+  .partes{display:flex;gap:30px;margin-bottom:26px}
+  .partes>div{flex:1}
+  .t{font-weight:700;color:#4a5266;font-size:9pt;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin-bottom:18px}
+  th{background:#f0f2f6;text-align:left;padding:8px 10px;font-size:9.5pt}
+  td{padding:9px 10px;border-bottom:1px solid #dde2ea;vertical-align:top}
+  .r{text-align:right}
+  .tot{margin-left:auto;width:290px}
+  .tot div{display:flex;justify-content:space-between;padding:4px 0}
+  .tot .g{border-top:2px solid #1b2130;margin-top:6px;padding-top:8px;font-size:13pt;font-weight:700}
+  .pie{margin-top:26px;font-size:9.5pt;color:#4a5266}
+  .pie p{margin:0 0 6px}
+  </style></head><body>
+  <div class="cab"><h1>FACTURA</h1><div class="meta"><b>Núm. ${esc(f.numero)}</b><br>Data: ${fecha(f.fecha)}${f.pago ? '<br>' + esc(f.pago) : ''}</div></div>
+  <div class="partes">
+    <div><div class="t">Emissor</div><b>${esc(e.nombre)}</b><br>${e.nif ? 'NIF: ' + esc(e.nif) + '<br>' : ''}${br(e.direccion)}${e.email ? '<br>' + esc(e.email) : ''}${e.telefono ? '<br>' + esc(e.telefono) : ''}</div>
+    <div><div class="t">Client</div><b>${esc(f.cliente.nombre)}</b><br>${f.cliente.nif ? 'NIF/CIF: ' + esc(f.cliente.nif) + '<br>' : ''}${br(f.cliente.direccion)}${f.cliente.email ? '<br>' + esc(f.cliente.email) : ''}</div>
+  </div>
+  <table><thead><tr><th>Descripció</th><th class="r">Quant.</th><th class="r">Preu</th><th class="r">Import</th></tr></thead><tbody>
+  ${f.lineas.map(l => `<tr><td>${br(l.desc)}</td><td class="r">${num(l.cant)}</td><td class="r">${eur(num(l.precio))}</td><td class="r">${eur(num(l.cant) * num(l.precio))}</td></tr>`).join('')}
+  </tbody></table>
+  <div class="tot"><div><span>Base imposable</span><span>${eur(c.base)}</span></div>
+  <div><span>IVA (${num(f.iva)}%)</span><span>${eur(c.iva)}</span></div>
+  ${c.irpf ? `<div><span>Retenció IRPF (${num(f.irpf)}%)</span><span>−${eur(c.irpf)}</span></div>` : ''}
+  <div class="g"><span>TOTAL</span><span>${eur(c.total)}</span></div></div>
+  <div class="pie">${e.iban ? `<p><b>Pagament per transferència:</b> ${esc(e.iban)}</p>` : ''}${f.notas ? `<p>${br(f.notas)}</p>` : ''}${D.ajustes.notas ? `<p>${br(D.ajustes.notas)}</p>` : ''}</div>
+  </body></html>`;
+}
+async function exportarPDF(f) {
+  const nombre = 'Factura ' + f.numero.replace(/[\\/:*?"<>|]/g, '-');
+  const ruta = await api.pdf(facturaHTML(f), nombre);
+  if (ruta) toast('PDF desat');
+}
+
+/* ============ Acciones (clic) ============ */
+const A = {
+  ir: b => ir(b.dataset.v),
+  /* inventario */
+  mas: b => { setS(b.dataset.t, b.dataset.l, getS(b.dataset.t, b.dataset.l) + 1); guardar(); render(); },
+  menos: b => { setS(b.dataset.t, b.dataset.l, getS(b.dataset.t, b.dataset.l) - 1); guardar(); render(); },
+  addTipo: () => {
+    const n = $('#nTipo').value.trim(); if (!n) return toast('Escriu un nom per al tipus', 'err');
+    D.tipos.push({ id: 't' + uid(), nombre: n }); guardar(); render();
+  },
+  addLugar: () => {
+    const n = $('#nLugar').value.trim(); if (!n) return toast('Escriu un nom per al lloc', 'err');
+    D.lugares.push({ id: 'l' + uid(), nombre: n }); guardar(); render();
+  },
+  delTipo: b => {
+    const t = D.tipos.find(x => x.id === b.dataset.t);
+    const n = totalTipo(t);
+    if (!confirm(`Treure «${t.nombre}» de l'inventari?` + (n ? `\nHi ha ${n} unitats registrades que es perdran.` : ''))) return;
+    D.tipos = D.tipos.filter(x => x.id !== t.id); delete D.stock[t.id]; guardar(); render();
+  },
+  delLugar: b => {
+    const l = D.lugares.find(x => x.id === b.dataset.l);
+    const n = totalLugar(l);
+    if (!confirm(`Treure el lloc «${l.nombre}»?` + (n ? `\nHi ha ${n} unitats registrades allà que es perdran.` : ''))) return;
+    D.lugares = D.lugares.filter(x => x.id !== l.id);
+    Object.values(D.stock).forEach(o => delete o[l.id]); guardar(); render();
+  },
+  /* facturas */
+  nuevaFactura: () => {
+    borrador = { id: uid(), nuevo: true, numero: siguienteNumero(), fecha: hoy(), pago: '', cliente: { nombre: '', nif: '', direccion: '', email: '' },
+      lineas: [{ desc: '', cant: 1, precio: '' }], iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: '' };
+    ir('factura');
+  },
+  editarFactura: b => { borrador = JSON.parse(JSON.stringify(D.facturas.find(f => f.id === b.dataset.id))); ir('factura'); },
+  pdfFactura: b => exportarPDF(D.facturas.find(f => f.id === b.dataset.id)),
+  delFactura: b => {
+    const f = D.facturas.find(x => x.id === b.dataset.id);
+    if (!confirm(`Eliminar la factura ${f.numero} de ${f.cliente.nombre}?`)) return;
+    D.facturas = D.facturas.filter(x => x.id !== f.id); guardar(); render();
+  },
+  addLinea: () => { borrador.lineas.push({ desc: '', cant: 1, precio: '' }); render(); },
+  delLinea: b => { if (borrador.lineas.length > 1) { borrador.lineas.splice(+b.dataset.i, 1); render(); } },
+  guardarFactura: () => guardarFactura(false),
+  guardarPdf: () => guardarFactura(true),
+  /* gastos */
+  elegirImagen: async () => {
+    const n = await api.elegirImagen(); if (!n) return;
+    if (gastoNuevo.imagen) api.borrarImagen(gastoNuevo.imagen);
+    gastoNuevo.imagen = n; render();
+  },
+  quitarImagenNueva: () => { api.borrarImagen(gastoNuevo.imagen); gastoNuevo.imagen = ''; render(); },
+  addGasto: async () => {
+    const g = gastoNuevo;
+    if (!g.concepto.trim()) return toast('Afegeix una descripció de la despesa', 'err');
+    if (!(num(g.importe) > 0)) return toast('Indica l\'import', 'err');
+    D.gastos.push({ id: uid(), fecha: g.fecha || hoy(), concepto: g.concepto.trim(), categoria: g.categoria.trim(), importe: num(g.importe), iva: num(g.iva), imagen: g.imagen });
+    gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
+    await guardar(); render(); toast('Despesa desada');
+  },
+  delGasto: async b => {
+    const g = D.gastos.find(x => x.id === b.dataset.id);
+    if (!confirm(`Eliminar la despesa «${g.concepto}»?`)) return;
+    if (g.imagen) api.borrarImagen(g.imagen);
+    D.gastos = D.gastos.filter(x => x.id !== g.id); await guardar(); render();
+  },
+  verImagen: b => { $('#modal').innerHTML = `<img src="${IMGURL}/${encodeURIComponent(b.dataset.n)}" alt="Tiquet ampliat">`; $('#modal').classList.add('on'); },
+  abrirArchivo: b => api.abrirArchivo(b.dataset.n),
+  cerrarModal: () => $('#modal').classList.remove('on'),
+  /* resumen y datos */
+  preset: b => { rango = presetRango(b.dataset.p); render(); },
+  abrirCarpeta: () => api.abrirCarpeta()
+};
+
+async function guardarFactura(conPdf) {
+  const f = borrador;
+  if (!f.cliente.nombre.trim()) return toast('Falta el nom del client', 'err');
+  if (!f.numero.trim()) return toast('Falta el número de factura', 'err');
+  if (D.facturas.some(x => x.numero === f.numero.trim() && x.id !== f.id)) return toast('Ja existeix una factura amb aquest número', 'err');
+  const lineas = f.lineas.filter(l => l.desc.trim()).map(l => ({ desc: l.desc.trim(), cant: num(l.cant), precio: num(l.precio) }));
+  if (!lineas.length) return toast('Afegeix almenys un concepte amb descripció', 'err');
+  f.lineas = lineas; f.numero = f.numero.trim(); f.iva = num(f.iva); f.irpf = num(f.irpf);
+  const i = D.facturas.findIndex(x => x.id === f.id);
+  delete f.nuevo;
+  if (i >= 0) D.facturas[i] = f; else D.facturas.push(f);
+  await guardar();
+  if (conPdf) await exportarPDF(f);
+  toast('Factura desada');
+  ir('facturas');
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]');
+  if (!b || b.tagName === 'INPUT') return;
+  if (b.id === 'modal' && e.target !== b) { A.cerrarModal(); return; }
+  if (A[b.dataset.a]) A[b.dataset.a](b);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.enter) { e.preventDefault(); $(e.target.dataset.enter).click(); }
+  if (e.key === 'Escape') A.cerrarModal();
+});
+
+/* Escritura en formularios sin perder el foco */
+document.addEventListener('input', e => {
+  const t = e.target, d = t.dataset;
+  if (vista === 'factura' && borrador) {
+    if (d.f) borrador[d.f] = t.value;
+    else if (d.c) borrador.cliente[d.c] = t.value;
+    else if (d.k) borrador.lineas[+d.l][d.k] = t.value;
+    else return;
+    updTotales();
+  } else if (vista === 'gastos' && d.g) {
+    gastoNuevo[d.g] = t.value;
+  }
+});
+
+/* Cambios confirmados (al salir del campo) */
+document.addEventListener('change', e => {
+  const t = e.target, d = t.dataset;
+  if (d.a === 'setStock') { setS(d.t, d.l, num(t.value)); guardar(); render(); }
+  else if (d.s) {
+    const ruta = d.s.split('.'); let o = D.ajustes;
+    while (ruta.length > 1) o = o[ruta.shift()];
+    o[ruta[0]] = t.type === 'number' ? num(t.value) : t.value.trim(); guardar();
+  }
+  else if (d.r) { rango[d.r] = t.value; render(); }
+  else if (vista === 'factura' && d.c === 'nombre') {
+    // Autocompletar con los datos de un cliente anterior
+    const prev = D.facturas.map(x => x.cliente).find(c => c.nombre.toLowerCase() === t.value.trim().toLowerCase());
+    if (prev) { ['nif', 'direccion', 'email'].forEach(k => { if (!borrador.cliente[k]) borrador.cliente[k] = prev[k]; }); render(); }
+  }
+});
+
+/* ============ Navegación ============ */
+const VISTAS = { inicio: vInicio, inventario: vInventario, facturas: vFacturas, factura: vForm, gastos: vGastos, resumen: vResumen, datos: vDatos };
+function render() {
+  const sc = $('#main').scrollTop;
+  $('#main').innerHTML = VISTAS[vista]();
+  $('#main').scrollTop = sc;
+  document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === (vista === 'factura' ? 'facturas' : vista)));
+  if (vista === 'factura') updTotales();
+}
+function ir(v) { vista = v; render(); $('#main').scrollTop = 0; }
+
+/* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
+const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co/rest/v1/';  // Ex: https://abcdefg.supabase.co
+const SUPABASE_KEY = 'sb_secret_YJybm-6req8qK5auTuZtZQ_CKxv-8Xl';  // La clau "anon public" del projecte
+
+const DADES_DEFECTE = () => ({
+  ajustes: {
+    emisor: { nombre: '', nif: '', direccion: '', email: '', telefono: '', iban: '' },
+    iva: 21, irpf: 15, notas: ''
+  },
+  lugares: [
+    { id: 'casa', nombre: 'Casa' },
+    { id: 'almacen', nombre: 'Magatzem' },
+    { id: 'tienda', nombre: 'Botiga' }
+  ],
+  tipos: [
+    { id: 't1', nombre: 'Originals' },
+    { id: 't2', nombre: 'Làmines A4' },
+    { id: 't3', nombre: 'Làmines A3' },
+    { id: 't4', nombre: 'Postals' }
+  ],
+  stock: {}, facturas: [], gastos: []
+});
+
+function _mergeDefecte(d) {
+  const base = DADES_DEFECTE();
+  return { ...base, ...d, ajustes: { ...base.ajustes, ...(d.ajustes || {}), emisor: { ...base.ajustes.emisor, ...((d.ajustes || {}).emisor || {}) } } };
+}
+
+/* ============ API web ============ */
+if (!window.api) {
+  const _pdfWeb = (html) => {
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permet les finestres emergents per veure la factura', 'err'); return Promise.resolve(null); }
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+    return Promise.resolve(true);
+  };
+  const _filePickWeb = (uploadFn) => new Promise(resolve => {
+    const fi = document.createElement('input');
+    fi.type = 'file'; fi.accept = 'image/*,.pdf';
+    fi.onchange = async () => {
+      if (!fi.files.length) return resolve(null);
+      try { resolve(await uploadFn(fi.files[0])); } catch { resolve(null); }
+    };
+    fi.click();
+  });
+
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    /* --- Mode Supabase (núvol) --- */
+    const _h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+    const _sb = (path, opts = {}) => fetch(SUPABASE_URL + path, { ...opts, headers: { ..._h, ...(opts.headers || {}) } });
+    const _sbj = (path, opts = {}) => _sb(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation', ...(opts.headers || {}) } });
+    const _imgBase = SUPABASE_URL + '/storage/v1/object/public/imagenes';
+
+    window.api = {
+      cargar: async () => {
+        try {
+          const r = await _sbj('/rest/v1/datos?id=eq.1&select=data');
+          const rows = await r.json();
+          if (rows.length && rows[0].data) return { data: _mergeDefecte(rows[0].data), imgUrl: _imgBase };
+          const base = DADES_DEFECTE();
+          await _sbj('/rest/v1/datos', { method: 'POST', body: JSON.stringify({ id: 1, data: base }) });
+          return { data: base, imgUrl: _imgBase };
+        } catch (e) { return { data: DADES_DEFECTE(), imgUrl: _imgBase }; }
+      },
+      guardar: d => _sbj('/rest/v1/datos?id=eq.1', { method: 'PATCH', body: JSON.stringify({ data: d }) }),
+      elegirImagen: () => _filePickWeb(async f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        const nom = Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '.' + ext;
+        await _sb('/storage/v1/object/imagenes/' + nom, { method: 'POST', headers: { 'Content-Type': f.type }, body: f });
+        return nom;
+      }),
+      borrarImagen: n => _sb('/storage/v1/object/imagenes/' + encodeURIComponent(n), { method: 'DELETE' }),
+      pdf: _pdfWeb,
+      abrirArchivo: n => window.open(_imgBase + '/' + encodeURIComponent(n), '_blank'),
+      abrirCarpeta: () => toast('Les dades es guarden al núvol.')
+    };
+  } else {
+    /* --- Mode servidor local (npm run web) --- */
+    window.api = {
+      cargar: () => fetch('/api/datos').then(r => r.json()),
+      guardar: d => fetch('/api/datos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }),
+      elegirImagen: () => _filePickWeb(async f => {
+        const fd = new FormData(); fd.append('imagen', f);
+        const r = await fetch('/api/imagen', { method: 'POST', body: fd });
+        return (await r.json()).nombre;
+      }),
+      borrarImagen: n => fetch('/api/imagen/' + encodeURIComponent(n), { method: 'DELETE' }),
+      pdf: _pdfWeb,
+      abrirArchivo: n => window.open('/imagenes/' + encodeURIComponent(n), '_blank'),
+      abrirCarpeta: () => toast('Les dades es guarden al servidor.')
+    };
+  }
+}
+
+(async function init() {
+  const r = await api.cargar();
+  D = r.data; IMGURL = r.imgUrl;
+  render();
+})();
+</script>
+</body>
+</html>
