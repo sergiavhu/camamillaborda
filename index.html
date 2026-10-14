@@ -125,6 +125,16 @@ tbody tr:hover{background:#fafbfd}
 #modal img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;z-index:30;display:none;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 #toast.err{background:var(--bad)}
+
+/* Login */
+#login{display:flex;align-items:center;justify-content:center;height:100%;width:100%;position:fixed;inset:0;background:var(--bg);z-index:50}
+.login-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px;width:340px;max-width:90vw}
+.login-box h1{margin-bottom:6px}
+.login-box p{color:var(--ink2);margin-bottom:20px}
+.login-box .f{margin-bottom:14px}
+.login-box .btn{width:100%;margin-top:6px}
+.login-err{color:var(--bad);font-size:13px;margin-top:8px;display:none}
+
 @media (max-width:1000px){.g4,.mini{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}}
 @media (max-width:700px){
   body{flex-direction:column}
@@ -158,10 +168,21 @@ tbody tr:hover{background:#fafbfd}
   <button class="nav" data-a="ir" data-v="resumen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10 M10 20V4 M16 20v-8 M22 20H2"/></svg>Resum</button>
   <div class="sp"></div>
   <button class="nav" data-a="ir" data-v="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Les meves dades</button>
+  <button class="nav" data-a="logout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>Sortir</button>
 </aside>
 <main id="main"></main>
 <div id="modal" data-a="cerrarModal"></div>
 <div id="toast"></div>
+<div id="login">
+  <div class="login-box">
+    <h1>Gestor d'Estudi</h1>
+    <p>Inicia sessió per accedir</p>
+    <div class="f"><label for="logEmail">Correu</label><input id="logEmail" type="email" placeholder="el-teu@correu.com"></div>
+    <div class="f"><label for="logPass">Contrasenya</label><input id="logPass" type="password" placeholder="········"></div>
+    <button class="btn pri" id="logBtn">Entrar</button>
+    <div class="login-err" id="logErr"></div>
+  </div>
+</div>
 
 <script>
 /* ============ Utilidades ============ */
@@ -539,7 +560,8 @@ const A = {
   cerrarModal: () => $('#modal').classList.remove('on'),
   /* resumen y datos */
   preset: b => { rango = presetRango(b.dataset.p); render(); },
-  abrirCarpeta: () => api.abrirCarpeta()
+  abrirCarpeta: () => api.abrirCarpeta(),
+  logout: () => { if (window.auth) auth.logout(); }
 };
 
 async function guardarFactura(conPdf) {
@@ -661,11 +683,57 @@ if (!window.api) {
   });
 
   if (SUPABASE_URL && SUPABASE_KEY) {
-    /* --- Mode Supabase (núvol) --- */
-    const _h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
-    const _sb = (path, opts = {}) => fetch(SUPABASE_URL + path, { ...opts, headers: { ..._h, ...(opts.headers || {}) } });
+    /* --- Autenticació Supabase --- */
+    let _token = null;
+    const _session = () => { try { return JSON.parse(localStorage.getItem('sb_session')); } catch { return null; } };
+    const _saveSession = s => { localStorage.setItem('sb_session', JSON.stringify(s)); _token = s.access_token; };
+    const _clearSession = () => { localStorage.removeItem('sb_session'); _token = null; };
+
+    async function _refreshToken() {
+      const s = _session();
+      if (!s || !s.refresh_token) return false;
+      try {
+        const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: s.refresh_token })
+        });
+        if (!r.ok) { _clearSession(); return false; }
+        const data = await r.json();
+        _saveSession(data);
+        return true;
+      } catch { _clearSession(); return false; }
+    }
+
+    async function _login(email, password) {
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error_description || e.msg || 'Error'); }
+      const data = await r.json();
+      _saveSession(data);
+      return true;
+    }
+
+    function _authHeaders() {
+      return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + _token };
+    }
+    const _sb = (path, opts = {}) => fetch(SUPABASE_URL + path, { ...opts, headers: { ..._authHeaders(), ...(opts.headers || {}) } });
     const _sbj = (path, opts = {}) => _sb(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation', ...(opts.headers || {}) } });
     const _imgBase = SUPABASE_URL + '/storage/v1/object/public/imagenes';
+
+    window.auth = {
+      check: async () => {
+        const s = _session();
+        if (!s) return false;
+        if (s.expires_at && s.expires_at * 1000 > Date.now() + 60000) { _token = s.access_token; return true; }
+        return _refreshToken();
+      },
+      login: _login,
+      logout: () => { _clearSession(); location.reload(); }
+    };
 
     window.api = {
       cargar: async () => {
@@ -708,10 +776,44 @@ if (!window.api) {
   }
 }
 
-(async function init() {
+/* ============ Login i arrencada ============ */
+async function startApp() {
   const r = await api.cargar();
   D = r.data; IMGURL = r.imgUrl;
+  $('#login').style.display = 'none';
+  $('#side').style.display = '';
   render();
+}
+
+(async function init() {
+  if (window.auth) {
+    $('#side').style.display = 'none';
+    const ok = await auth.check();
+    if (ok) { startApp(); return; }
+    $('#login').style.display = 'flex';
+
+    async function doLogin() {
+      const email = $('#logEmail').value.trim();
+      const pass = $('#logPass').value;
+      const err = $('#logErr');
+      if (!email || !pass) { err.textContent = 'Omple els dos camps'; err.style.display = 'block'; return; }
+      err.style.display = 'none';
+      $('#logBtn').disabled = true; $('#logBtn').textContent = 'Entrant…';
+      try {
+        await auth.login(email, pass);
+        startApp();
+      } catch (e) {
+        err.textContent = e.message === 'Invalid login credentials' ? 'Correu o contrasenya incorrectes' : e.message;
+        err.style.display = 'block';
+        $('#logBtn').disabled = false; $('#logBtn').textContent = 'Entrar';
+      }
+    }
+    $('#logBtn').onclick = doLogin;
+    $('#logPass').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
+  } else {
+    $('#login').style.display = 'none';
+    startApp();
+  }
 })();
 </script>
 </body>
