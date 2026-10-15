@@ -81,13 +81,20 @@ td.c,th.c{text-align:center}
 tbody tr:hover{background:#fafbfd}
 
 /* Inventario */
-.inv td.tn{font-weight:600;min-width:150px}
+.inv td.tn{font-weight:600;min-width:150px;white-space:nowrap}
+.tn-name{cursor:pointer;border-bottom:1px dashed var(--line)}
+.tn-name:hover{border-color:var(--blue);color:var(--blue)}
+.tn-acts{display:inline-flex;gap:2px;margin-left:6px;vertical-align:middle}
+.tn-acts button{border:0;background:none;cursor:pointer;color:var(--mute);font-size:13px;padding:1px 4px;border-radius:4px;line-height:1}
+.tn-acts button:hover{background:var(--soft);color:var(--ink)}
 .step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
 .step button{width:32px;height:34px;border:0;background:var(--soft);cursor:pointer;font-size:18px;font-weight:600}
 .step button:hover{background:var(--mark)}
 .step input{width:64px;border:0;border-radius:0;text-align:center;font-weight:700;font-size:16px;padding:6px 2px;-moz-appearance:textfield}
 .step input::-webkit-inner-spin-button{display:none}
 .inv .tot{font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:18px;font-weight:600}
+.stock-ok{background:#e8f5e9}.stock-warn{background:#fff8e1}.stock-low{background:#ffebee}
+.stock-ok .step{border-color:#a5d6a7}.stock-warn .step{border-color:#ffe082}.stock-low .step{border-color:#ef9a9a}
 
 /* Inicio */
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;max-width:940px}
@@ -252,17 +259,27 @@ function vInicio() {
 }
 const facYTotal = fs => fs.reduce((s, f) => s + calc(f).total, 0);
 
+function stockClass(val) {
+  const lim = num(D.ajustes.restock || 0);
+  if (lim <= 0) return '';
+  if (val <= 0) return 'stock-low';
+  if (val <= lim) return 'stock-warn';
+  return 'stock-ok';
+}
+
 function vInventario() {
   const L = D.lugares, T = D.tipos;
+  const lim = num(D.ajustes.restock || 0);
   const tabla = T.length && L.length ? `
-  <div class="card scroll"><table class="inv"><thead><tr><th>Tipus d'il·lustració</th>
-    ${L.map(l => `<th class="c">${esc(l.nombre)} <button class="x" data-a="delLugar" data-l="${l.id}" title="Treure aquest lloc">×</button></th>`).join('')}
+  <div class="card scroll">${lim > 0 ? `<div class="leg" style="margin-bottom:8px"><span><i style="background:#ef9a9a"></i>Sense estoc</span><span><i style="background:#ffe082"></i>≤ ${lim} (re-stock)</span><span><i style="background:#a5d6a7"></i>Bé</span></div>` : ''}
+  <table class="inv"><thead><tr><th>Tipus d'il·lustració</th>
+    ${L.map(l => `<th class="c"><span class="tn-name" data-a="editarLugar" data-l="${l.id}">${esc(l.nombre)}</span> <button class="x" data-a="delLugar" data-l="${l.id}" title="Treure aquest lloc">×</button></th>`).join('')}
     <th class="c">Total</th><th></th></tr></thead>
-  <tbody>${T.map(t => `<tr><td class="tn">${esc(t.nombre)}</td>
-    ${L.map(l => `<td class="c"><div class="step">
+  <tbody>${T.map((t, i) => `<tr><td class="tn"><span class="tn-name" data-a="editarTipo" data-t="${t.id}">${esc(t.nombre)}</span><span class="tn-acts">${i > 0 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="-1" title="Pujar">▲</button>` : ''}${i < T.length - 1 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="1" title="Baixar">▼</button>` : ''}</span></td>
+    ${L.map(l => { const v = getS(t.id, l.id); return `<td class="c ${stockClass(v)}"><div class="step">
       <button data-a="menos" data-t="${t.id}" data-l="${l.id}" aria-label="Treure'n un">−</button>
-      <input type="number" min="0" value="${getS(t.id, l.id)}" data-a="setStock" data-t="${t.id}" data-l="${l.id}" aria-label="${esc(t.nombre)} a ${esc(l.nombre)}">
-      <button data-a="mas" data-t="${t.id}" data-l="${l.id}" aria-label="Afegir-ne un">+</button></div></td>`).join('')}
+      <input type="number" min="0" value="${v}" data-a="setStock" data-t="${t.id}" data-l="${l.id}" aria-label="${esc(t.nombre)} a ${esc(l.nombre)}">
+      <button data-a="mas" data-t="${t.id}" data-l="${l.id}" aria-label="Afegir-ne un">+</button></div></td>`; }).join('')}
     <td class="c tot">${totalTipo(t)}</td>
     <td><button class="x" data-a="delTipo" data-t="${t.id}" title="Treure aquest tipus">×</button></td></tr>`).join('')}</tbody>
   <tfoot><tr><td>Total per lloc</td>${L.map(l => `<td class="c">${totalLugar(l)}</td>`).join('')}<td class="c">${totalTodo()}</td><td></td></tr></tfoot>
@@ -445,7 +462,10 @@ function vDatos() {
       <div class="card"><h2>Valors per defecte</h2><div class="grid g2">
         ${inp('aIva', 'IVA (%)', 'iva', a.iva, 'type="number" step="any"')}
         ${inp('aIrpf', 'Retenció IRPF (%)', 'irpf', a.irpf, 'type="number" step="any"')}
-      </div><div class="f"><label for="aNot">Text al peu de cada factura</label><textarea id="aNot" data-s="notas" placeholder="Ex. Gràcies per la teva confiança.">${esc(a.notas)}</textarea></div></div>
+      </div>
+      ${inp('aRestock', 'Llindar de re-stock (inventari)', 'restock', a.restock || 0, 'type="number" min="0" step="1"')}
+      <p class="mute" style="margin:-8px 0 14px;font-size:12px">Les cel·les de l'inventari es pinten de color quan el stock és ≤ aquest valor. Posa 0 per desactivar.</p>
+      <div class="f"><label for="aNot">Text al peu de cada factura</label><textarea id="aNot" data-s="notas" placeholder="Ex. Gràcies per la teva confiança.">${esc(a.notas)}</textarea></div></div>
       <div class="card"><h2>Les teves dades a l'ordinador</h2><p class="mute" style="margin-bottom:12px">Tot es desa al teu equip. Es fa una còpia automàtica diària (últims 7 dies).</p><button class="btn" data-a="abrirCarpeta">Obrir carpeta de dades</button></div>
     </div>
   </div>`;
@@ -509,6 +529,24 @@ const A = {
   addLugar: () => {
     const n = $('#nLugar').value.trim(); if (!n) return toast('Escriu un nom per al lloc', 'err');
     D.lugares.push({ id: 'l' + uid(), nombre: n }); guardar(); render();
+  },
+  editarTipo: b => {
+    const t = D.tipos.find(x => x.id === b.dataset.t); if (!t) return;
+    const n = prompt('Nou nom per a aquest tipus:', t.nombre);
+    if (n && n.trim()) { t.nombre = n.trim(); guardar(); render(); }
+  },
+  moverTipo: b => {
+    const i = D.tipos.findIndex(x => x.id === b.dataset.t);
+    const dir = parseInt(b.dataset.dir);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= D.tipos.length) return;
+    [D.tipos[i], D.tipos[j]] = [D.tipos[j], D.tipos[i]];
+    guardar(); render();
+  },
+  editarLugar: b => {
+    const l = D.lugares.find(x => x.id === b.dataset.l); if (!l) return;
+    const n = prompt('Nou nom per a aquest lloc:', l.nombre);
+    if (n && n.trim()) { l.nombre = n.trim(); guardar(); render(); }
   },
   delTipo: b => {
     const t = D.tipos.find(x => x.id === b.dataset.t);
@@ -647,7 +685,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const DADES_DEFECTE = () => ({
   ajustes: {
     emisor: { nombre: '', nif: '', direccion: '', email: '', telefono: '', iban: '' },
-    iva: 21, irpf: 15, notas: ''
+    iva: 21, irpf: 15, notas: '', restock: 5
   },
   lugares: [
     { id: 'casa', nombre: 'Casa' },
