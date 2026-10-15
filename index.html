@@ -265,6 +265,21 @@ function crearZip(fitxers) {
   return new Blob([...parts, ...central, end], { type: 'application/zip' });
 }
 
+function _zipFindFile(buf, name) {
+  const dv = new DataView(buf.buffer || buf);
+  let i = 0;
+  while (i < buf.length - 30) {
+    if (dv.getUint32(i, true) !== 0x04034b50) break;
+    const fnLen = dv.getUint16(i + 26, true), exLen = dv.getUint16(i + 28, true);
+    const cSize = dv.getUint32(i + 18, true);
+    const fn = new TextDecoder().decode(buf.slice(i + 30, i + 30 + fnLen));
+    const dataStart = i + 30 + fnLen + exLen;
+    if (fn === name) return buf.slice(dataStart, dataStart + cSize);
+    i = dataStart + cSize;
+  }
+  return null;
+}
+
 function toast(msg, tipo) {
   const t = $('#toast');
   t.textContent = msg; t.className = tipo === 'err' ? 'err' : ''; t.style.display = 'block';
@@ -596,7 +611,14 @@ function vDatos() {
       ${inp('aRestock', 'Llindar de re-stock (inventari)', 'restock', a.restock || 0, 'type="number" min="0" step="1"')}
       <p class="mute" style="margin:-8px 0 14px;font-size:12px">Les cel·les de l'inventari es pinten de color quan el stock és ≤ aquest valor. Posa 0 per desactivar.</p>
       <div class="f"><label for="aNot">Text al peu de cada factura</label><textarea id="aNot" data-s="notas" placeholder="Ex. Gràcies per la teva confiança.">${esc(a.notas)}</textarea></div></div>
-      <div class="card"><h2>Les teves dades a l'ordinador</h2><p class="mute" style="margin-bottom:12px">Tot es desa al teu equip. Es fa una còpia automàtica diària (últims 7 dies).</p><button class="btn" data-a="abrirCarpeta">Obrir carpeta de dades</button></div>
+      <div class="card"><h2>Còpies de seguretat</h2>
+        <p class="mute" style="margin-bottom:12px">Descarrega totes les teves dades com a fitxer JSON. Si cal, pots restaurar-les des d'un fitxer anterior.</p>
+        <div class="row" style="align-items:center;gap:10px">
+          <button class="btn pri" data-a="exportarDades">Descarregar còpia (JSON)</button>
+          <button class="btn" data-a="importarDades">Restaurar des de fitxer…</button>
+          <button class="btn" data-a="abrirCarpeta">Obrir carpeta de dades</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -868,6 +890,51 @@ const A = {
     }
     descarregarBlob(crearZip(fitxers), 'despeses_tiquets_' + (rango.desde || 'tot') + '_' + (rango.hasta || 'tot') + '.zip');
     toast('ZIP de tiquets descarregat');
+  },
+  exportarDades: async () => {
+    toast('Preparant còpia de seguretat…');
+    const fitxers = [{ name: 'dades.json', data: JSON.stringify(D, null, 2) }];
+    const imatges = new Set();
+    (D.gastos || []).forEach(g => { if (g.imagen) imatges.add(g.imagen); });
+    if (imatges.size) {
+      let ok = 0;
+      for (const nom of imatges) {
+        try {
+          const r = await fetch(IMGURL + '/' + encodeURIComponent(nom));
+          if (r.ok) { fitxers.push({ name: 'imagenes/' + nom, data: new Uint8Array(await r.arrayBuffer()) }); ok++; }
+        } catch {}
+      }
+      if (ok > 0) toast(`Descarregant ${ok} imatge${ok > 1 ? 's' : ''}…`);
+    }
+    const nom = 'gestor-estudi-backup-' + hoy() + '.zip';
+    descarregarBlob(crearZip(fitxers), nom);
+    toast('Còpia completa descarregada (' + fitxers.length + ' fitxers)');
+  },
+  importarDades: () => {
+    const fi = document.createElement('input');
+    fi.type = 'file'; fi.accept = '.json,.zip';
+    fi.onchange = async () => {
+      if (!fi.files.length) return;
+      const file = fi.files[0];
+      try {
+        let parsed;
+        if (file.name.endsWith('.zip')) {
+          const buf = new Uint8Array(await file.arrayBuffer());
+          const jsonEntry = _zipFindFile(buf, 'dades.json');
+          if (!jsonEntry) return toast('El ZIP no conté dades.json', 'err');
+          parsed = JSON.parse(new TextDecoder().decode(jsonEntry));
+        } else {
+          parsed = JSON.parse(await file.text());
+        }
+        if (!parsed.ajustes && !parsed.facturas && !parsed.tipos) return toast('El fitxer no sembla una còpia vàlida', 'err');
+        if (!confirm('Restaurar les dades des d\'aquest fitxer?\nAixò substituirà TOTES les dades actuals.\n\nAssegura\'t de tenir una còpia de seguretat abans.')) return;
+        D = _mergeDefecte(parsed);
+        await guardar();
+        render();
+        toast('Dades restaurades correctament');
+      } catch (e) { toast('Error llegint el fitxer: ' + e.message, 'err'); }
+    };
+    fi.click();
   },
   abrirCarpeta: () => api.abrirCarpeta(),
   logout: () => { if (window.auth) auth.logout(); }
