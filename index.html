@@ -213,6 +213,45 @@ let D, IMGURL, vista = 'inicio', borrador = null;
 let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
 let rango = null;
 
+function descarregarCSV(nom, capçaleres, files) {
+  const csvEsc = v => { const s = String(v ?? '').replace(/"/g, '""'); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s; };
+  const csv = '﻿' + [capçaleres.join(','), ...files.map(f => f.map(csvEsc).join(','))].join('\r\n');
+  descarregarBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nom);
+}
+function descarregarBlob(blob, nom) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nom; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function _crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) { c ^= buf[i]; for (let j = 0; j < 8; j++) c = (c >>> 1) ^ (c & 1 ? 0xEDB88320 : 0); }
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function crearZip(fitxers) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let off = 0;
+  for (const f of fitxers) {
+    const d = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    const n = enc.encode(f.name), crc = _crc32(d);
+    const lh = new Uint8Array(30 + n.length), lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true);
+    lv.setUint32(14, crc, true); lv.setUint32(18, d.length, true); lv.setUint32(22, d.length, true);
+    lv.setUint16(26, n.length, true); lh.set(n, 30);
+    const cd = new Uint8Array(46 + n.length), cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, d.length, true); cv.setUint32(24, d.length, true);
+    cv.setUint16(28, n.length, true); cv.setUint32(42, off, true); cd.set(n, 46);
+    parts.push(lh, d); central.push(cd); off += lh.length + d.length;
+  }
+  let cs = 0; for (const c of central) cs += c.length;
+  const end = new Uint8Array(22), ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, fitxers.length, true); ev.setUint16(10, fitxers.length, true);
+  ev.setUint32(12, cs, true); ev.setUint32(16, off, true);
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+
 function toast(msg, tipo) {
   const t = $('#toast');
   t.textContent = msg; t.className = tipo === 'err' ? 'err' : ''; t.style.display = 'block';
@@ -415,8 +454,13 @@ function vResumen() {
   const nomMes = k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString('ca-ES', { month: 'short', year: '2-digit' }); };
 
   const chip = (p, t) => `<button class="chip" data-a="preset" data-p="${p}">${t}</button>`;
+  const teDades = facs.length || gas.length;
   return `
   <header class="top"><div><h1>Resum</h1><p>Factures i despeses del període que triïs.</p></div></header>
+  ${teDades ? `<div class="row" style="margin-bottom:18px;flex-wrap:wrap;align-items:center">
+    ${facs.length ? '<button class="btn" data-a="csvFactures">CSV factures</button><button class="btn" data-a="pdfFactures">PDF totes les factures</button><button class="btn" data-a="zipFactures">ZIP factures (HTML)</button>' : ''}
+    ${gas.length ? '<button class="btn" data-a="csvDespeses">CSV despeses</button><button class="btn" data-a="zipDespeses">ZIP tiquets despeses</button>' : ''}
+  </div>` : ''}
   <div class="card">
     <div class="row"><div><label for="rDes">Des de</label><input id="rDes" type="date" data-r="desde" value="${esc(rango.desde)}"></div>
     <div><label for="rHas">Fins a</label><input id="rHas" type="date" data-r="hasta" value="${esc(rango.hasta)}"></div></div>
@@ -604,6 +648,73 @@ const A = {
   cerrarModal: () => $('#modal').classList.remove('on'),
   /* resumen y datos */
   preset: b => { rango = presetRango(b.dataset.p); render(); },
+  csvFactures: () => {
+    if (!rango) rango = presetRango('trim');
+    const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+    const facs = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!facs.length) return toast('No hi ha factures en aquest període', 'err');
+    const files = facs.map(f => { const c = calc(f); return [f.numero, fecha(f.fecha), f.cliente.nombre, f.cliente.nif, r2(c.base), num(f.iva), r2(c.iva), num(f.irpf), r2(c.irpf), r2(c.total), f.pago, f.lineas.map(l => l.desc).join(' | ')]; });
+    descarregarCSV('factures_' + (rango.desde || 'tot') + '_' + (rango.hasta || 'tot') + '.csv',
+      ['Número', 'Data', 'Client', 'NIF/CIF', 'Base', 'IVA %', 'IVA €', 'IRPF %', 'IRPF €', 'Total', 'Pagament', 'Conceptes'], files);
+    toast('CSV de factures descarregat');
+  },
+  csvDespeses: () => {
+    if (!rango) rango = presetRango('trim');
+    const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+    const gas = D.gastos.filter(g => en(g.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!gas.length) return toast('No hi ha despeses en aquest període', 'err');
+    const files = gas.map(g => [fecha(g.fecha), g.concepto, g.categoria, r2(num(g.importe)), r2(num(g.iva)), r2(num(g.importe) - num(g.iva))]);
+    descarregarCSV('despeses_' + (rango.desde || 'tot') + '_' + (rango.hasta || 'tot') + '.csv',
+      ['Data', 'Descripció', 'Categoria', 'Import total', 'IVA', 'Base'], files);
+    toast('CSV de despeses descarregat');
+  },
+  pdfFactures: () => {
+    if (!rango) rango = presetRango('trim');
+    const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+    const facs = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!facs.length) return toast('No hi ha factures en aquest període', 'err');
+    const pags = facs.map(f => {
+      const h = facturaHTML(f);
+      const body = h.match(/<body>([\s\S]*)<\/body>/);
+      return body ? body[1] : '';
+    }).join('<div style="page-break-after:always"></div>');
+    const estils = facturaHTML(facs[0]).match(/<style>([\s\S]*?)<\/style>/);
+    const html = `<!DOCTYPE html><html lang="ca"><head><meta charset="utf-8"><style>${estils ? estils[1] : ''}</style></head><body>${pags}</body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) return toast('Permet les finestres emergents', 'err');
+    w.document.write(html); w.document.close();
+    setTimeout(() => w.print(), 500);
+  },
+  zipFactures: () => {
+    if (!rango) rango = presetRango('trim');
+    const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+    const facs = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!facs.length) return toast('No hi ha factures en aquest període', 'err');
+    const fitxers = facs.map(f => ({ name: 'Factura_' + f.numero.replace(/[\\/:*?"<>|]/g, '-') + '.html', data: facturaHTML(f) }));
+    descarregarBlob(crearZip(fitxers), 'factures_' + (rango.desde || 'tot') + '_' + (rango.hasta || 'tot') + '.zip');
+    toast('ZIP de factures descarregat');
+  },
+  zipDespeses: async () => {
+    if (!rango) rango = presetRango('trim');
+    const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
+    const gas = D.gastos.filter(g => en(g.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!gas.length) return toast('No hi ha despeses en aquest període', 'err');
+    toast('Preparant ZIP de tiquets…');
+    const fitxers = [];
+    const csvRows = gas.map(g => [fecha(g.fecha), g.concepto, g.categoria, r2(num(g.importe)), r2(num(g.iva)), r2(num(g.importe) - num(g.iva))]);
+    const csvEsc = v => { const s = String(v ?? '').replace(/"/g, '""'); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s; };
+    fitxers.push({ name: 'resum_despeses.csv', data: '﻿' + ['Data,Descripció,Categoria,Import,IVA,Base', ...csvRows.map(r => r.map(csvEsc).join(','))].join('\r\n') });
+    for (const g of gas) {
+      if (g.imagen) {
+        try {
+          const r = await fetch(IMGURL + '/' + encodeURIComponent(g.imagen));
+          if (r.ok) fitxers.push({ name: 'tiquets/' + g.imagen, data: new Uint8Array(await r.arrayBuffer()) });
+        } catch {}
+      }
+    }
+    descarregarBlob(crearZip(fitxers), 'despeses_tiquets_' + (rango.desde || 'tot') + '_' + (rango.hasta || 'tot') + '.zip');
+    toast('ZIP de tiquets descarregat');
+  },
   abrirCarpeta: () => api.abrirCarpeta(),
   logout: () => { if (window.auth) auth.logout(); }
 };
