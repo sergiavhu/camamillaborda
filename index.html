@@ -94,6 +94,15 @@ tbody tr:hover{background:#fafbfd}
 .step input::-webkit-inner-spin-button{display:none}
 .inv .tot{font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:18px;font-weight:600}
 .filtre{max-width:280px;padding:7px 12px 7px 32px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237b8397' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l3.5 3.5'/%3E%3C/svg%3E") 10px center no-repeat;font-size:13px}
+/* Encàrrecs */
+.enc-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.enc-pagat{background:#e8f5e9;color:#1f8a5b}.enc-parcial{background:#fff8e1;color:#a67c00}.enc-pendent{background:#ffebee;color:#c93a3a}
+.enc-timer{display:inline-flex;align-items:center;gap:6px;font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:16px;font-weight:600}
+.enc-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid var(--line)}
+.enc-tabs button{border:0;background:none;padding:10px 18px;font-weight:600;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.enc-tabs button.on{color:var(--blue);border-color:var(--blue)}
+.enc-tabs button:hover{color:var(--ink)}
+
 .stock-ok{background:#e8f5e9}.stock-warn{background:#fff8e1}.stock-low{background:#ffebee}
 .stock-ok .step{border-color:#a5d6a7}.stock-warn .step{border-color:#ffe082}.stock-low .step{border-color:#ef9a9a}
 
@@ -179,6 +188,7 @@ tbody tr:hover{background:#fafbfd}
   <button class="nav" data-a="ir" data-v="inventario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10"/></svg>Inventari</button>
   <button class="nav" data-a="ir" data-v="facturas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z M14 2v6h6 M9 13h8 M9 17h8"/></svg>Factures</button>
   <button class="nav" data-a="ir" data-v="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18 M7 15h4"/></svg>Despeses</button>
+  <button class="nav" data-a="ir" data-v="encarrecs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 5h6 M9 14l2 2 4-4"/></svg>Encàrrecs</button>
   <button class="nav" data-a="ir" data-v="resumen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10 M10 20V4 M16 20v-8 M22 20H2"/></svg>Resum</button>
   <div class="sp"></div>
   <button class="nav" data-a="ir" data-v="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Les meves dades</button>
@@ -213,7 +223,8 @@ const num = v => parseFloat(String(v).replace(',', '.')) || 0;
 let D, IMGURL, vista = 'inicio', borrador = null;
 let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
 let rango = null;
-let filtroInv = '', filtroFac = '', filtroGas = '';
+let filtroInv = '', filtroFac = '', filtroGas = '', filtroEnc = '';
+let encTab = 'pendents';
 
 function descarregarCSV(nom, capçaleres, files) {
   const csvEsc = v => { const s = String(v ?? '').replace(/"/g, '""'); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s; };
@@ -431,6 +442,71 @@ function vGastos() {
     <td><button class="x" data-a="delGasto" data-id="${x.id}" title="Eliminar">×</button></td></tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="4">Total</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe), 0))}</td><td></td></tr></tfoot></table>`
   : `<div class="empty">${q ? 'Cap despesa coincideix amb la cerca.' : 'Encara no has registrat despeses.'}</div>`}</div>`;
+}
+
+function encTotal(e) { return e.tipus === 'hores' ? r2(num(e.hores) * num(e.preu)) : r2(num(e.preu)); }
+function encPagamentBadge(e) {
+  const t = encTotal(e), p = num(e.pagat);
+  if (p >= t && t > 0) return '<span class="enc-badge enc-pagat">Pagat</span>';
+  if (p > 0) return `<span class="enc-badge enc-parcial">Parcial (${eur(p)})</span>`;
+  return '<span class="enc-badge enc-pendent">Pendent</span>';
+}
+
+function vEncarrecs() {
+  if (!D.encarrecs) D.encarrecs = [];
+  const tots = D.encarrecs;
+  const q = filtroEnc.toLowerCase();
+  const pendents = tots.filter(e => e.estat !== 'finalitzat').sort((a, b) => b.dataCreacio.localeCompare(a.dataCreacio));
+  const historial = tots.filter(e => e.estat === 'finalitzat').sort((a, b) => (b.dataFi || b.dataCreacio).localeCompare(a.dataFi || a.dataCreacio));
+  const llista = encTab === 'pendents' ? pendents : historial;
+  const filtrada = q ? llista.filter(e => e.client.toLowerCase().includes(q) || e.descripcio.toLowerCase().includes(q)) : llista;
+  const clients = [...new Set(tots.map(e => e.client).filter(Boolean))];
+
+  return `
+  <header class="top"><div><h1>Encàrrecs</h1><p>Gestiona els treballs pendents, controla les hores i els pagaments.</p></div></header>
+  <div class="card"><h2>Nou encàrrec</h2>
+    <div class="grid g3">
+      <div><label for="ecCli">Client</label><input id="ecCli" list="ecClients" placeholder="Nom del client"><datalist id="ecClients">${clients.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      <div style="grid-column:span 2"><label for="ecDesc">Descripció del treball</label><input id="ecDesc" placeholder="Ex. 3 il·lustracions per a llibre infantil"></div>
+      <div><label for="ecTipus">Tipus de cobrament</label><select id="ecTipus"><option value="fix">Preu fix</option><option value="hores">Per hores</option></select></div>
+      <div><label for="ecPreu"><span id="ecPreuLbl">Preu total (€)</span></label><input id="ecPreu" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      <div><label for="ecNotes">Notes</label><input id="ecNotes" placeholder="Opcional"></div>
+    </div>
+    <p style="margin-top:14px"><button class="btn pri" data-a="addEncarrec">Afegir encàrrec</button></p>
+  </div>
+  <div class="enc-tabs">
+    <button class="${encTab === 'pendents' ? 'on' : ''}" data-a="encTabChange" data-tab="pendents">Pendents (${pendents.length})</button>
+    <button class="${encTab === 'historial' ? 'on' : ''}" data-a="encTabChange" data-tab="historial">Historial (${historial.length})</button>
+  </div>
+  ${llista.length > 3 ? `<div style="margin-bottom:14px"><input class="filtre" data-fil="enc" placeholder="Buscar encàrrec…" value="${esc(filtroEnc)}"></div>` : ''}
+  ${filtrada.length ? filtrada.map(e => {
+    const t = encTotal(e), p = num(e.pagat), resta = Math.max(0, r2(t - p));
+    return `<div class="card" style="position:relative">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div><h2>${esc(e.descripcio)}</h2><p class="mute">${esc(e.client)}${e.dataCreacio ? ' · Creat ' + fecha(e.dataCreacio) : ''}${e.dataFi ? ' · Finalitzat ' + fecha(e.dataFi) : ''}</p></div>
+        <div style="text-align:right">${encPagamentBadge(e)}</div>
+      </div>
+      <div class="grid g4" style="margin-top:14px">
+        <div><span class="mute">${e.tipus === 'hores' ? 'Preu/hora' : 'Preu fix'}</span><br><b>${eur(num(e.preu))}</b></div>
+        ${e.tipus === 'hores' ? `<div><span class="mute">Hores</span><br><span class="enc-timer">${num(e.hores).toFixed(1)}h</span></div>` : ''}
+        <div><span class="mute">Total</span><br><b>${eur(t)}</b></div>
+        <div><span class="mute">Pendent de cobrar</span><br><b style="color:${resta > 0 ? 'var(--bad)' : 'var(--ok)'}">${eur(resta)}</b></div>
+      </div>
+      ${e.notes ? `<p class="mute" style="margin-top:10px">${esc(e.notes)}</p>` : ''}
+      <div class="row" style="margin-top:14px;align-items:center">
+        ${e.estat !== 'finalitzat' ? `
+          ${e.tipus === 'hores' ? `<button class="btn sm" data-a="encAfegirHores" data-id="${e.id}">+ Hores</button>` : ''}
+          <button class="btn sm" data-a="encPagament" data-id="${e.id}">Registrar pagament</button>
+          <button class="btn sm" data-a="encEditar" data-id="${e.id}">Editar</button>
+          <button class="btn sm pri" data-a="encFinalitzar" data-id="${e.id}">Finalitzar</button>
+        ` : `
+          <button class="btn sm pri" data-a="encFacturar" data-id="${e.id}">Crear factura</button>
+          <button class="btn sm" data-a="encReobrir" data-id="${e.id}">Reobrir</button>
+        `}
+        <button class="x" data-a="encEliminar" data-id="${e.id}" title="Eliminar">×</button>
+      </div>
+    </div>`;
+  }).join('') : `<div class="card empty">${q ? 'Cap encàrrec coincideix amb la cerca.' : (encTab === 'pendents' ? 'No tens encàrrecs pendents. Afegeix-ne un a dalt.' : 'Encara no has finalitzat cap encàrrec.')}</div>`}`;
 }
 
 function presetRango(p) {
@@ -656,6 +732,74 @@ const A = {
   verImagen: b => { $('#modal').innerHTML = `<img src="${IMGURL}/${encodeURIComponent(b.dataset.n)}" alt="Tiquet ampliat">`; $('#modal').classList.add('on'); },
   abrirArchivo: b => api.abrirArchivo(b.dataset.n),
   cerrarModal: () => $('#modal').classList.remove('on'),
+  /* encarrecs */
+  encTabChange: b => { encTab = b.dataset.tab; filtroEnc = ''; render(); },
+  addEncarrec: () => {
+    const cli = $('#ecCli').value.trim(), desc = $('#ecDesc').value.trim(), tipus = $('#ecTipus').value, preu = num($('#ecPreu').value), notes = $('#ecNotes').value.trim();
+    if (!cli) return toast('Escriu el nom del client', 'err');
+    if (!desc) return toast('Descriu el treball', 'err');
+    if (preu <= 0) return toast('Indica el preu', 'err');
+    if (!D.encarrecs) D.encarrecs = [];
+    D.encarrecs.push({ id: uid(), client: cli, descripcio: desc, tipus, preu, hores: 0, pagat: 0, estat: 'pendent', dataCreacio: hoy(), dataFi: '', notes });
+    guardar(); render(); toast('Encàrrec afegit');
+  },
+  encAfegirHores: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    const h = prompt('Quantes hores afegir?', '1');
+    if (h === null) return;
+    e.hores = r2(num(e.hores) + num(h));
+    guardar(); render();
+  },
+  encPagament: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    const resta = r2(encTotal(e) - num(e.pagat));
+    const p = prompt(`Import del pagament (pendent: ${eur(resta)}):`, resta);
+    if (p === null) return;
+    e.pagat = r2(num(e.pagat) + num(p));
+    guardar(); render(); toast('Pagament registrat');
+  },
+  encEditar: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    const desc = prompt('Descripció:', e.descripcio);
+    if (desc === null) return;
+    const preu = prompt(e.tipus === 'hores' ? 'Preu per hora (€):' : 'Preu fix (€):', e.preu);
+    if (preu === null) return;
+    const notes = prompt('Notes:', e.notes || '');
+    e.descripcio = desc.trim() || e.descripcio;
+    e.preu = num(preu) || e.preu;
+    if (notes !== null) e.notes = notes.trim();
+    guardar(); render();
+  },
+  encFinalitzar: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    if (!confirm(`Finalitzar l'encàrrec «${e.descripcio}» de ${e.client}?`)) return;
+    e.estat = 'finalitzat'; e.dataFi = hoy();
+    guardar(); render(); toast('Encàrrec finalitzat');
+  },
+  encReobrir: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    e.estat = 'pendent'; e.dataFi = '';
+    guardar(); render();
+  },
+  encFacturar: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    const t = encTotal(e);
+    const prev = D.facturas.map(x => x.cliente).find(c => c.nombre.toLowerCase() === e.client.toLowerCase());
+    borrador = {
+      id: uid(), nuevo: true, numero: siguienteNumero(), fecha: hoy(), pago: '',
+      cliente: { nombre: e.client, nif: (prev && prev.nif) || '', direccion: (prev && prev.direccion) || '', email: (prev && prev.email) || '' },
+      lineas: e.tipus === 'hores'
+        ? [{ desc: e.descripcio, cant: num(e.hores), precio: num(e.preu) }]
+        : [{ desc: e.descripcio, cant: 1, precio: t }],
+      iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: ''
+    };
+    ir('factura');
+  },
+  encEliminar: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    if (!confirm(`Eliminar l'encàrrec «${e.descripcio}»?`)) return;
+    D.encarrecs = D.encarrecs.filter(x => x.id !== e.id); guardar(); render();
+  },
   /* resumen y datos */
   preset: b => { rango = presetRango(b.dataset.p); render(); },
   csvFactures: () => {
@@ -761,7 +905,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const t = e.target, d = t.dataset;
   if (d.fil) {
-    const map = { inv: v => filtroInv = v, fac: v => filtroFac = v, gas: v => filtroGas = v };
+    const map = { inv: v => filtroInv = v, fac: v => filtroFac = v, gas: v => filtroGas = v, enc: v => filtroEnc = v };
     if (map[d.fil]) { map[d.fil](t.value); render(); const el = $(`[data-fil="${d.fil}"]`); if (el) { el.focus(); el.selectionStart = el.selectionEnd = t.selectionStart; } }
     return;
   }
@@ -779,6 +923,7 @@ document.addEventListener('input', e => {
 /* Cambios confirmados (al salir del campo) */
 document.addEventListener('change', e => {
   const t = e.target, d = t.dataset;
+  if (t.id === 'ecTipus') { const lbl = $('#ecPreuLbl'); if (lbl) lbl.textContent = t.value === 'hores' ? 'Preu per hora (€)' : 'Preu total (€)'; }
   if (d.a === 'setStock') { setS(d.t, d.l, num(t.value)); guardar(); render(); }
   else if (d.s) {
     const ruta = d.s.split('.'); let o = D.ajustes;
@@ -794,7 +939,7 @@ document.addEventListener('change', e => {
 });
 
 /* ============ Navegación ============ */
-const VISTAS = { inicio: vInicio, inventario: vInventario, facturas: vFacturas, factura: vForm, gastos: vGastos, resumen: vResumen, datos: vDatos };
+const VISTAS = { inicio: vInicio, inventario: vInventario, facturas: vFacturas, factura: vForm, gastos: vGastos, encarrecs: vEncarrecs, resumen: vResumen, datos: vDatos };
 function render() {
   const sc = $('#main').scrollTop;
   $('#main').innerHTML = VISTAS[vista]();
@@ -802,7 +947,7 @@ function render() {
   document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === (vista === 'factura' ? 'facturas' : vista)));
   if (vista === 'factura') updTotales();
 }
-function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = ''; render(); $('#main').scrollTop = 0; }
+function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = filtroEnc = ''; render(); $('#main').scrollTop = 0; }
 
 /* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
 const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co';  // Només el domini, sense /rest/v1/
@@ -824,7 +969,7 @@ const DADES_DEFECTE = () => ({
     { id: 't3', nombre: 'Làmines A3' },
     { id: 't4', nombre: 'Postals' }
   ],
-  stock: {}, facturas: [], gastos: []
+  stock: {}, facturas: [], gastos: [], encarrecs: []
 });
 
 function _mergeDefecte(d) {
