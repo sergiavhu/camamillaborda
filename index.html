@@ -93,6 +93,7 @@ tbody tr:hover{background:#fafbfd}
 .step input{width:64px;border:0;border-radius:0;text-align:center;font-weight:700;font-size:16px;padding:6px 2px;-moz-appearance:textfield}
 .step input::-webkit-inner-spin-button{display:none}
 .inv .tot{font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:18px;font-weight:600}
+.filtre{max-width:280px;padding:7px 12px 7px 32px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237b8397' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l3.5 3.5'/%3E%3C/svg%3E") 10px center no-repeat;font-size:13px}
 .stock-ok{background:#e8f5e9}.stock-warn{background:#fff8e1}.stock-low{background:#ffebee}
 .stock-ok .step{border-color:#a5d6a7}.stock-warn .step{border-color:#ffe082}.stock-low .step{border-color:#ef9a9a}
 
@@ -212,6 +213,7 @@ const num = v => parseFloat(String(v).replace(',', '.')) || 0;
 let D, IMGURL, vista = 'inicio', borrador = null;
 let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
 let rango = null;
+let filtroInv = '', filtroFac = '', filtroGas = '';
 
 function descarregarCSV(nom, capçaleres, files) {
   const csvEsc = v => { const s = String(v ?? '').replace(/"/g, '""'); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s; };
@@ -307,24 +309,26 @@ function stockClass(val) {
 }
 
 function vInventario() {
-  const L = D.lugares, T = D.tipos;
+  const L = D.lugares, T0 = D.tipos;
+  const q = filtroInv.toLowerCase();
+  const T = q ? T0.filter(t => t.nombre.toLowerCase().includes(q)) : T0;
   const lim = num(D.ajustes.restock || 0);
-  const tabla = T.length && L.length ? `
+  const tabla = T0.length && L.length ? `
   <div class="card scroll">${lim > 0 ? `<div class="leg" style="margin-bottom:8px"><span><i style="background:#ef9a9a"></i>Sense estoc</span><span><i style="background:#ffe082"></i>≤ ${lim} (re-stock)</span><span><i style="background:#a5d6a7"></i>Bé</span></div>` : ''}
   <table class="inv"><thead><tr><th>Tipus d'il·lustració</th>
     ${L.map(l => `<th class="c"><span class="tn-name" data-a="editarLugar" data-l="${l.id}">${esc(l.nombre)}</span> <button class="x" data-a="delLugar" data-l="${l.id}" title="Treure aquest lloc">×</button></th>`).join('')}
     <th class="c">Total</th><th></th></tr></thead>
-  <tbody>${T.map((t, i) => `<tr><td class="tn"><span class="tn-name" data-a="editarTipo" data-t="${t.id}">${esc(t.nombre)}</span><span class="tn-acts">${i > 0 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="-1" title="Pujar">▲</button>` : ''}${i < T.length - 1 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="1" title="Baixar">▼</button>` : ''}</span></td>
+  <tbody>${T.map((t, i) => { const ti = T0.indexOf(t); return `<tr><td class="tn"><span class="tn-name" data-a="editarTipo" data-t="${t.id}">${esc(t.nombre)}</span><span class="tn-acts">${ti > 0 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="-1" title="Pujar">▲</button>` : ''}${ti < T0.length - 1 ? `<button data-a="moverTipo" data-t="${t.id}" data-dir="1" title="Baixar">▼</button>` : ''}</span></td>
     ${L.map(l => { const v = getS(t.id, l.id); return `<td class="c ${stockClass(v)}"><div class="step">
       <button data-a="menos" data-t="${t.id}" data-l="${l.id}" aria-label="Treure'n un">−</button>
       <input type="number" min="0" value="${v}" data-a="setStock" data-t="${t.id}" data-l="${l.id}" aria-label="${esc(t.nombre)} a ${esc(l.nombre)}">
       <button data-a="mas" data-t="${t.id}" data-l="${l.id}" aria-label="Afegir-ne un">+</button></div></td>`; }).join('')}
     <td class="c tot">${totalTipo(t)}</td>
-    <td><button class="x" data-a="delTipo" data-t="${t.id}" title="Treure aquest tipus">×</button></td></tr>`).join('')}</tbody>
+    <td><button class="x" data-a="delTipo" data-t="${t.id}" title="Treure aquest tipus">×</button></td></tr>`; }).join('')}</tbody>
   <tfoot><tr><td>Total per lloc</td>${L.map(l => `<td class="c">${totalLugar(l)}</td>`).join('')}<td class="c">${totalTodo()}</td><td></td></tr></tfoot>
   </table></div>` : `<div class="card empty">Afegeix almenys un tipus d'il·lustració i un lloc per començar a comptar.</div>`;
   return `
-  <header class="top"><div><h1>Inventari</h1><p>Quantes il·lustracions de cada tipus tens a cada lloc. Els canvis es guarden sols.</p></div></header>
+  <header class="top"><div><h1>Inventari</h1><p>Quantes il·lustracions de cada tipus tens a cada lloc. Els canvis es guarden sols.</p></div>${T0.length > 3 ? `<input class="filtre" data-fil="inv" placeholder="Filtrar tipus…" value="${esc(filtroInv)}">` : ''}</header>
   ${tabla}
   <div class="grid g2">
     <div class="card"><h2>Afegir tipus d'il·lustració</h2><div class="row"><div class="grow"><label for="nTipo">Nom</label><input id="nTipo" placeholder="Ex. Làmines A5" data-enter="#bTipo"></div><button class="btn pri" id="bTipo" data-a="addTipo">Afegir tipus</button></div></div>
@@ -333,14 +337,17 @@ function vInventario() {
 }
 
 function vFacturas() {
-  const lista = [...D.facturas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero));
+  const totes = [...D.facturas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero));
+  const q = filtroFac.toLowerCase();
+  const lista = q ? totes.filter(f => f.numero.toLowerCase().includes(q) || f.cliente.nombre.toLowerCase().includes(q) || fecha(f.fecha).includes(q)) : totes;
   return `
-  <header class="top"><div><h1>Factures</h1><p>Totes les factures que has creat.</p></div><button class="btn pri" data-a="nuevaFactura">+ Nova factura</button></header>
+  <header class="top"><div><h1>Factures</h1><p>Totes les factures que has creat.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn pri" data-a="nuevaFactura">+ Nova factura</button></div></header>
   ${avisoDatos()}
+  ${totes.length > 3 ? `<div style="margin-bottom:14px"><input class="filtre" data-fil="fac" placeholder="Buscar per núm., client…" value="${esc(filtroFac)}"></div>` : ''}
   <div class="card scroll">${lista.length ? `<table><thead><tr><th>Núm.</th><th>Data</th><th>Client</th><th class="r">Base</th><th class="r">Total</th><th></th></tr></thead><tbody>
     ${lista.map(f => { const c = calc(f); return `<tr><td><b>${esc(f.numero)}</b></td><td>${fecha(f.fecha)}</td><td>${esc(f.cliente.nombre)}</td><td class="r">${eur(c.base)}</td><td class="r"><b>${eur(c.total)}</b></td>
       <td class="r" style="white-space:nowrap"><button class="btn sm" data-a="editarFactura" data-id="${f.id}">Obrir</button> <button class="btn sm" data-a="pdfFactura" data-id="${f.id}">PDF</button> <button class="x" data-a="delFactura" data-id="${f.id}" title="Eliminar">×</button></td></tr>`; }).join('')}
-    </tbody></table>` : `<div class="empty">Encara no hi ha factures. Crea la primera amb «Nova factura».</div>`}</div>`;
+    </tbody></table>` : `<div class="empty">${q ? 'Cap factura coincideix amb la cerca.' : 'Encara no hi ha factures. Crea la primera amb «Nova factura».'}</div>`}</div>`;
 }
 function avisoDatos() {
   const e = D.ajustes.emisor;
@@ -396,7 +403,9 @@ function updTotales() {
 function vGastos() {
   const g = gastoNuevo; if (!g.fecha) g.fecha = hoy();
   const cats = [...new Set(['Materials', 'Paper', 'Pintura i tinta', 'Programari', 'Enviaments', 'Altres', ...D.gastos.map(x => x.categoria).filter(Boolean)])];
-  const lista = [...D.gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const tots = [...D.gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const q = filtroGas.toLowerCase();
+  const lista = q ? tots.filter(x => x.concepto.toLowerCase().includes(q) || (x.categoria || '').toLowerCase().includes(q) || fecha(x.fecha).includes(q)) : tots;
   const miniatura = n => !n ? '<div class="thumb"></div>' : /\.pdf$/i.test(n)
     ? `<div class="pdfico" data-a="abrirArchivo" data-n="${esc(n)}" title="Obrir PDF">PDF</div>`
     : `<img class="thumb" src="${IMGURL}/${encodeURIComponent(n)}" data-a="verImagen" data-n="${esc(n)}" alt="Tiquet">`;
@@ -415,12 +424,13 @@ function vGastos() {
     </div>
     <p style="margin-top:14px"><button class="btn pri" data-a="addGasto">Desar despesa</button></p>
   </div>
-  <div class="card scroll"><h2>Despeses registrades</h2>
+  ${tots.length > 3 ? `<div style="margin-bottom:14px"><input class="filtre" data-fil="gas" placeholder="Buscar despesa…" value="${esc(filtroGas)}"></div>` : ''}
+  <div class="card scroll"><h2>Despeses registrades${q ? ` <span class="mute" style="font-weight:400">(${lista.length} de ${tots.length})</span>` : ''}</h2>
   ${lista.length ? `<table><thead><tr><th></th><th>Data</th><th>Descripció</th><th>Categoria</th><th class="r">Import</th><th></th></tr></thead><tbody>
     ${lista.map(x => `<tr><td>${miniatura(x.imagen)}</td><td>${fecha(x.fecha)}</td><td>${esc(x.concepto)}</td><td>${esc(x.categoria)}</td><td class="r"><b>${eur(num(x.importe))}</b></td>
     <td><button class="x" data-a="delGasto" data-id="${x.id}" title="Eliminar">×</button></td></tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="4">Total</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe), 0))}</td><td></td></tr></tfoot></table>`
-  : `<div class="empty">Encara no has registrat despeses.</div>`}</div>`;
+  : `<div class="empty">${q ? 'Cap despesa coincideix amb la cerca.' : 'Encara no has registrat despeses.'}</div>`}</div>`;
 }
 
 function presetRango(p) {
@@ -750,6 +760,11 @@ document.addEventListener('keydown', e => {
 /* Escritura en formularios sin perder el foco */
 document.addEventListener('input', e => {
   const t = e.target, d = t.dataset;
+  if (d.fil) {
+    const map = { inv: v => filtroInv = v, fac: v => filtroFac = v, gas: v => filtroGas = v };
+    if (map[d.fil]) { map[d.fil](t.value); render(); const el = $(`[data-fil="${d.fil}"]`); if (el) { el.focus(); el.selectionStart = el.selectionEnd = t.selectionStart; } }
+    return;
+  }
   if (vista === 'factura' && borrador) {
     if (d.f) borrador[d.f] = t.value;
     else if (d.c) borrador.cliente[d.c] = t.value;
@@ -787,7 +802,7 @@ function render() {
   document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === (vista === 'factura' ? 'facturas' : vista)));
   if (vista === 'factura') updTotales();
 }
-function ir(v) { vista = v; render(); $('#main').scrollTop = 0; }
+function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = ''; render(); $('#main').scrollTop = 0; }
 
 /* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
 const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co';  // Només el domini, sense /rest/v1/
