@@ -280,6 +280,27 @@ function _zipFindFile(buf, name) {
   return null;
 }
 
+function comprimirImatge(file, maxPx, qual) {
+  maxPx = maxPx || 1200; qual = qual || 0.75;
+  return new Promise(resolve => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) return resolve(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(b => { URL.revokeObjectURL(img.src); resolve(b || file); }, 'image/jpeg', qual);
+    };
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function toast(msg, tipo) {
   const t = $('#toast');
   t.textContent = msg; t.className = tipo === 'err' ? 'err' : ''; t.style.display = 'block';
@@ -1136,9 +1157,11 @@ if (!window.api) {
       },
       guardar: d => _sbj('/rest/v1/datos?id=eq.1', { method: 'PATCH', body: JSON.stringify({ data: d }) }),
       elegirImagen: () => _filePickWeb(async f => {
-        const ext = f.name.split('.').pop().toLowerCase();
+        const isPdf = /\.pdf$/i.test(f.name);
+        const body = isPdf ? f : await comprimirImatge(f);
+        const ext = isPdf ? 'pdf' : 'jpg';
         const nom = Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '.' + ext;
-        await _sb('/storage/v1/object/imagenes/' + nom, { method: 'POST', headers: { 'Content-Type': f.type }, body: f });
+        await _sb('/storage/v1/object/imagenes/' + nom, { method: 'POST', headers: { 'Content-Type': isPdf ? 'application/pdf' : 'image/jpeg' }, body });
         return nom;
       }),
       borrarImagen: n => _sb('/storage/v1/object/imagenes/' + encodeURIComponent(n), { method: 'DELETE' }),
@@ -1152,7 +1175,9 @@ if (!window.api) {
       cargar: () => fetch('/api/datos').then(r => r.json()),
       guardar: d => fetch('/api/datos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }),
       elegirImagen: () => _filePickWeb(async f => {
-        const fd = new FormData(); fd.append('imagen', f);
+        const isPdf = /\.pdf$/i.test(f.name);
+        const body = isPdf ? f : await comprimirImatge(f);
+        const fd = new FormData(); fd.append('imagen', body, isPdf ? f.name : 'foto.jpg');
         const r = await fetch('/api/imagen', { method: 'POST', body: fd });
         return (await r.json()).nombre;
       }),
