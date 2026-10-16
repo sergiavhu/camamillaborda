@@ -471,7 +471,10 @@ function vEncarrecs() {
   if (!D.encarrecs) D.encarrecs = [];
   const tots = D.encarrecs;
   const q = filtroEnc.toLowerCase();
-  const pendents = tots.filter(e => e.estat !== 'finalitzat').sort((a, b) => b.dataCreacio.localeCompare(a.dataCreacio));
+  const pendents = tots.filter(e => e.estat !== 'finalitzat').sort((a, b) => {
+    const da = a.dataEntrega || '9999', db = b.dataEntrega || '9999';
+    return da.localeCompare(db) || b.dataCreacio.localeCompare(a.dataCreacio);
+  });
   const historial = tots.filter(e => e.estat === 'finalitzat').sort((a, b) => (b.dataFi || b.dataCreacio).localeCompare(a.dataFi || a.dataCreacio));
   const llista = encTab === 'pendents' ? pendents : historial;
   const filtrada = q ? llista.filter(e => e.client.toLowerCase().includes(q) || e.descripcio.toLowerCase().includes(q)) : llista;
@@ -485,6 +488,7 @@ function vEncarrecs() {
       <div style="grid-column:span 2"><label for="ecDesc">Descripció del treball</label><input id="ecDesc" placeholder="Ex. 3 il·lustracions per a llibre infantil"></div>
       <div><label for="ecTipus">Tipus de cobrament</label><select id="ecTipus"><option value="fix">Preu fix</option><option value="hores">Per hores</option></select></div>
       <div><label for="ecPreu"><span id="ecPreuLbl">Preu total (€)</span></label><input id="ecPreu" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      <div><label for="ecEntrega">Data d'entrega</label><input id="ecEntrega" type="date"></div>
       <div><label for="ecNotes">Notes</label><input id="ecNotes" placeholder="Opcional"></div>
     </div>
     <p style="margin-top:14px"><button class="btn pri" data-a="addEncarrec">Afegir encàrrec</button></p>
@@ -498,7 +502,7 @@ function vEncarrecs() {
     const t = encTotal(e), p = num(e.pagat), resta = Math.max(0, r2(t - p));
     return `<div class="card" style="position:relative">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div><h2>${esc(e.descripcio)}</h2><p class="mute">${esc(e.client)}${e.dataCreacio ? ' · Creat ' + fecha(e.dataCreacio) : ''}${e.dataFi ? ' · Finalitzat ' + fecha(e.dataFi) : ''}</p></div>
+        <div><h2>${esc(e.descripcio)}</h2><p class="mute">${esc(e.client)}${e.dataCreacio ? ' · Creat ' + fecha(e.dataCreacio) : ''}${e.dataEntrega && e.estat !== 'finalitzat' ? (() => { const d = Math.ceil((new Date(e.dataEntrega) - new Date()) / 86400000); return d < 0 ? ' · <b style="color:var(--bad)">Entrega passada (' + fecha(e.dataEntrega) + ')</b>' : d <= 7 ? ' · <b style="color:#a67c00">Entrega ' + fecha(e.dataEntrega) + ' (' + d + ' dies)</b>' : ' · Entrega ' + fecha(e.dataEntrega); })() : (e.dataEntrega ? ' · Entrega ' + fecha(e.dataEntrega) : '')}${e.dataFi ? ' · Finalitzat ' + fecha(e.dataFi) : ''}</p></div>
         <div style="text-align:right">${encPagamentBadge(e)}</div>
       </div>
       <div class="grid g4" style="margin-top:14px">
@@ -515,6 +519,7 @@ function vEncarrecs() {
           <button class="btn sm" data-a="encEditar" data-id="${e.id}">Editar</button>
           <button class="btn sm pri" data-a="encFinalitzar" data-id="${e.id}">Finalitzar</button>
         ` : `
+          <button class="btn sm" data-a="encPagament" data-id="${e.id}">Registrar pagament</button>
           <button class="btn sm pri" data-a="encFacturar" data-id="${e.id}">Crear factura</button>
           <button class="btn sm" data-a="encReobrir" data-id="${e.id}">Reobrir</button>
         `}
@@ -756,12 +761,12 @@ const A = {
   /* encarrecs */
   encTabChange: b => { encTab = b.dataset.tab; filtroEnc = ''; render(); },
   addEncarrec: () => {
-    const cli = $('#ecCli').value.trim(), desc = $('#ecDesc').value.trim(), tipus = $('#ecTipus').value, preu = num($('#ecPreu').value), notes = $('#ecNotes').value.trim();
+    const cli = $('#ecCli').value.trim(), desc = $('#ecDesc').value.trim(), tipus = $('#ecTipus').value, preu = num($('#ecPreu').value), entrega = $('#ecEntrega').value, notes = $('#ecNotes').value.trim();
     if (!cli) return toast('Escriu el nom del client', 'err');
     if (!desc) return toast('Descriu el treball', 'err');
     if (preu <= 0) return toast('Indica el preu', 'err');
     if (!D.encarrecs) D.encarrecs = [];
-    D.encarrecs.push({ id: uid(), client: cli, descripcio: desc, tipus, preu, hores: 0, pagat: 0, estat: 'pendent', dataCreacio: hoy(), dataFi: '', notes });
+    D.encarrecs.push({ id: uid(), client: cli, descripcio: desc, tipus, preu, hores: 0, pagat: 0, estat: 'pendent', dataCreacio: hoy(), dataEntrega: entrega, dataFi: '', notes });
     guardar(); render(); toast('Encàrrec afegit');
   },
   encAfegirHores: b => {
@@ -785,9 +790,11 @@ const A = {
     if (desc === null) return;
     const preu = prompt(e.tipus === 'hores' ? 'Preu per hora (€):' : 'Preu fix (€):', e.preu);
     if (preu === null) return;
+    const entrega = prompt("Data d'entrega (AAAA-MM-DD, buit per treure):", e.dataEntrega || '');
     const notes = prompt('Notes:', e.notes || '');
     e.descripcio = desc.trim() || e.descripcio;
     e.preu = num(preu) || e.preu;
+    if (entrega !== null) e.dataEntrega = entrega.trim();
     if (notes !== null) e.notes = notes.trim();
     guardar(); render();
   },
