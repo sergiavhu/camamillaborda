@@ -221,7 +221,7 @@ const fecha = iso => iso ? iso.split('-').reverse().join('/') : '';
 const num = v => parseFloat(String(v).replace(',', '.')) || 0;
 
 let D, IMGURL, vista = 'inicio', borrador = null;
-let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
+let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', ivaPct: '21', imagen: '' };
 let rango = null;
 let filtroInv = '', filtroFac = '', filtroGas = '', filtroEnc = '';
 let encTab = 'pendents';
@@ -463,8 +463,8 @@ function vGastos() {
       <div><label for="gFec">Data</label><input id="gFec" type="date" data-g="fecha" value="${esc(g.fecha)}"></div>
       <div style="grid-column:span 2"><label for="gCon">Descripció</label><input id="gCon" data-g="concepto" value="${esc(g.concepto)}" placeholder="Ex. Aquarel·les i paper de 300 g"></div>
       <div><label for="gCat">Categoria</label><input id="gCat" data-g="categoria" list="cats" value="${esc(g.categoria)}"><datalist id="cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
-      <div><label for="gImp">Import total (€)</label><input id="gImp" type="number" step="0.01" min="0" data-g="importe" value="${esc(g.importe)}"></div>
-      <div><label for="gIva">Dels quals IVA (€) <span class="mute" style="font-weight:400">opcional</span></label><input id="gIva" type="number" step="0.01" min="0" data-g="iva" value="${esc(g.iva)}"></div>
+      <div><label for="gImp">Import total amb IVA (€)</label><input id="gImp" type="number" step="0.01" min="0" data-g="importe" value="${esc(g.importe)}"></div>
+      <div><label for="gIvaPct">IVA de la despesa (%)</label><select id="gIvaPct" data-g="ivaPct"><option value="0"${(g.ivaPct||'21')==='0'?' selected':''}>0% (exempt)</option><option value="4"${(g.ivaPct||'21')==='4'?' selected':''}>4%</option><option value="10"${(g.ivaPct||'21')==='10'?' selected':''}>10%</option><option value="21"${!g.ivaPct||(g.ivaPct||'21')==='21'?' selected':''}>21%</option></select></div>
       <div style="grid-column:span 2"><label>Foto o tiquet</label><div class="row" style="align-items:center">
         <button class="btn" data-a="elegirImagen">${g.imagen ? 'Canviar imatge' : 'Pujar imatge…'}</button>
         ${g.imagen ? `<span>${miniatura(g.imagen)}</span><button class="x" data-a="quitarImagenNueva" title="Treure imatge">×</button>` : '<span class="mute">Imatge o PDF del tiquet</span>'}</div></div>
@@ -473,10 +473,10 @@ function vGastos() {
   </div>
   ${tots.length > 3 ? `<div style="margin-bottom:14px"><input class="filtre" data-fil="gas" placeholder="Buscar despesa…" value="${esc(filtroGas)}"></div>` : ''}
   <div class="card scroll"><h2>Despeses registrades${q ? ` <span class="mute" style="font-weight:400">(${lista.length} de ${tots.length})</span>` : ''}</h2>
-  ${lista.length ? `<table><thead><tr><th></th><th>Data</th><th>Descripció</th><th>Categoria</th><th class="r">Import</th><th></th></tr></thead><tbody>
-    ${lista.map(x => `<tr><td>${miniatura(x.imagen)}</td><td>${fecha(x.fecha)}</td><td>${esc(x.concepto)}</td><td>${esc(x.categoria)}</td><td class="r"><b>${eur(num(x.importe))}</b></td>
-    <td><button class="x" data-a="delGasto" data-id="${x.id}" title="Eliminar">×</button></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe), 0))}</td><td></td></tr></tfoot></table>`
+  ${lista.length ? `<table><thead><tr><th></th><th>Data</th><th>Descripció</th><th>Categoria</th><th class="r">Base</th><th class="r">IVA</th><th class="r">Total</th><th></th></tr></thead><tbody>
+    ${lista.map(x => { const xi = num(x.iva), xb = r2(num(x.importe) - xi); return `<tr><td>${miniatura(x.imagen)}</td><td>${fecha(x.fecha)}</td><td>${esc(x.concepto)}</td><td>${esc(x.categoria)}</td><td class="r">${eur(xb)}</td><td class="r mute">${eur(xi)}</td><td class="r"><b>${eur(num(x.importe))}</b></td>
+    <td><button class="x" data-a="delGasto" data-id="${x.id}" title="Eliminar">×</button></td></tr>`; }).join('')}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe) - num(x.iva), 0))}</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.iva), 0))}</td><td class="r">${eur(lista.reduce((s, x) => s + num(x.importe), 0))}</td><td></td></tr></tfoot></table>`
   : `<div class="empty">${q ? 'Cap despesa coincideix amb la cerca.' : 'Encara no has registrat despeses.'}</div>`}</div>`;
 }
 
@@ -767,8 +767,10 @@ const A = {
     const g = gastoNuevo;
     if (!g.concepto.trim()) return toast('Afegeix una descripció de la despesa', 'err');
     if (!(num(g.importe) > 0)) return toast('Indica l\'import', 'err');
-    D.gastos.push({ id: uid(), fecha: g.fecha || hoy(), concepto: g.concepto.trim(), categoria: g.categoria.trim(), importe: num(g.importe), iva: num(g.iva), imagen: g.imagen });
-    gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', imagen: '' };
+    const pct = num(g.ivaPct || 21);
+    const ivaCalc = pct > 0 ? r2(num(g.importe) * pct / (100 + pct)) : 0;
+    D.gastos.push({ id: uid(), fecha: g.fecha || hoy(), concepto: g.concepto.trim(), categoria: g.categoria.trim(), importe: num(g.importe), iva: ivaCalc, imagen: g.imagen });
+    gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '', ivaPct: '21', imagen: '' };
     await guardar(); render(); toast('Despesa desada');
   },
   delGasto: async b => {
