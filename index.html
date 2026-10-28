@@ -571,7 +571,9 @@ function vResumen() {
   const gTot = gas.reduce((s, g) => s + num(g.importe), 0);
   const gIva = gas.reduce((s, g) => s + num(g.iva), 0);
   const gBase = gTot - gIva;
-  const benef = S.base - gBase;
+  const ivaLiq = r2(S.iva - gIva);
+  const benefBrut = r2(S.base - gBase);
+  const benefNet = r2(benefBrut - (ivaLiq > 0 ? ivaLiq : 0));
 
   const meses = {};
   facs.forEach(f => { const k = f.fecha.slice(0, 7); (meses[k] = meses[k] || { i: 0, g: 0 }).i += calc(f).base; });
@@ -593,16 +595,17 @@ function vResumen() {
     <div><label for="rHas">Fins a</label><input id="rHas" type="date" data-r="hasta" value="${esc(rango.hasta)}"></div></div>
     <div class="chips">${chip('mes', 'Aquest mes')}${chip('mesAnt', 'Mes anterior')}${chip('trim', 'Aquest trimestre')}${chip('trimAnt', 'Trimestre anterior')}${chip('anio', 'Aquest any')}${chip('todo', 'Tot')}</div>
   </div>
-  <div class="grid g3" style="margin-bottom:18px">
-    <div class="kpi"><span>Facturat (amb IVA, després d'IRPF)</span><span class="num">${eur(S.total)}</span><span class="mute">${facs.length} factures</span></div>
-    <div class="kpi"><span>Despeses</span><span class="num">${eur(gTot)}</span><span class="mute">${gas.length} registres</span></div>
-    <div class="kpi ${benef >= 0 ? 'pos' : 'neg'}"><span>Benefici (ingressos − despeses, sense IVA)</span><span class="num">${eur(benef)}</span><span class="mute">orientatiu</span></div>
+  <div class="grid g4" style="margin-bottom:18px">
+    <div class="kpi"><span>Base ingressos</span><span class="num">${eur(S.base)}</span><span class="mute">${facs.length} factures</span></div>
+    <div class="kpi"><span>Base despeses</span><span class="num">${eur(gBase)}</span><span class="mute">${gas.length} registres</span></div>
+    <div class="kpi ${benefBrut >= 0 ? 'pos' : 'neg'}"><span>Benefici brut (base − base)</span><span class="num">${eur(benefBrut)}</span><span class="mute">ingressos − despeses sense IVA</span></div>
+    <div class="kpi ${benefNet >= 0 ? 'pos' : 'neg'}"><span>Benefici net estimat</span><span class="num">${eur(benefNet)}</span><span class="mute">després de liquidar IVA</span></div>
   </div>
   <div class="mini">
-    <div><span class="mute">Base imposable</span><b>${eur(S.base)}</b></div>
+    <div><span class="mute">Facturat total</span><b>${eur(S.total)}</b></div>
     <div><span class="mute">IVA repercutit</span><b>${eur(S.iva)}</b></div>
     <div><span class="mute">IVA suportat</span><b>${eur(gIva)}</b></div>
-    <div><span class="mute">IVA a liquidar</span><b>${eur(S.iva - gIva)}</b></div>
+    <div><span class="mute">IVA a liquidar</span><b style="color:${ivaLiq > 0 ? 'var(--bad)' : 'var(--ok)'}">${eur(ivaLiq)}</b></div>
     <div><span class="mute">IRPF retingut</span><b>${eur(S.irpf)}</b></div>
   </div>
   <div class="card"><h2>Mes a mes</h2>
