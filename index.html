@@ -573,6 +573,7 @@ function vResumen() {
   const gBase = gTot - gIva;
   const ivaLiq = r2(S.iva - gIva);
   const benef = r2(S.base - gBase);
+  const benefNet = r2(benef - S.irpf);
 
   const meses = {};
   facs.forEach(f => { const k = f.fecha.slice(0, 7); (meses[k] = meses[k] || { i: 0, g: 0 }).i += calc(f).base; });
@@ -594,10 +595,11 @@ function vResumen() {
     <div><label for="rHas">Fins a</label><input id="rHas" type="date" data-r="hasta" value="${esc(rango.hasta)}"></div></div>
     <div class="chips">${chip('mes', 'Aquest mes')}${chip('mesAnt', 'Mes anterior')}${chip('trim', 'Aquest trimestre')}${chip('trimAnt', 'Trimestre anterior')}${chip('anio', 'Aquest any')}${chip('todo', 'Tot')}</div>
   </div>
-  <div class="grid g3" style="margin-bottom:18px">
+  <div class="grid g4" style="margin-bottom:18px">
     <div class="kpi"><span>Base ingressos</span><span class="num">${eur(S.base)}</span><span class="mute">${facs.length} factures</span></div>
     <div class="kpi"><span>Base despeses</span><span class="num">${eur(gBase)}</span><span class="mute">${gas.length} registres</span></div>
-    <div class="kpi ${benef >= 0 ? 'pos' : 'neg'}"><span>Benefici</span><span class="num">${eur(benef)}</span><span class="mute">ingressos − despeses (sense IVA ni IRPF)</span></div>
+    <div class="kpi ${benef >= 0 ? 'pos' : 'neg'}"><span>Benefici brut</span><span class="num">${eur(benef)}</span><span class="mute">ingressos − despeses</span></div>
+    <div class="kpi ${benefNet >= 0 ? 'pos' : 'neg'}"><span>Benefici net</span><span class="num">${eur(benefNet)}</span><span class="mute">després d'IRPF retingut (${eur(S.irpf)})</span></div>
   </div>
   <div class="mini">
     <div><span class="mute">Facturat total</span><b>${eur(S.total)}</b></div>
