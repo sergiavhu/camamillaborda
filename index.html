@@ -596,7 +596,7 @@ function vFires() {
         <td class="c">${disp}</td>
         <td class="c">${vt > 0 ? '<b>' + vt + '</b>' : '<span class="mute">0</span>'}</td>
         <td><input type="number" min="1" max="${disp}" value="1" id="fq-${t.id}" style="width:70px"></td>
-        <td><input type="number" step="0.01" min="0" placeholder="0.00" id="fp-${t.id}" style="width:100px"></td>
+        <td><input type="number" step="0.01" min="0" placeholder="0.00" id="fp-${t.id}" value="${(D.ajustes.preusFira && D.ajustes.preusFira[t.id]) || ''}" style="width:100px"></td>
         <td><button class="btn sm pri" data-a="fireAfegir" data-t="${t.id}">+ Vendre</button></td>
       </tr>`; }).join('')}
       </tbody></table></div>
@@ -737,6 +737,12 @@ function vDatos() {
       ${inp('aRestock', 'Llindar de re-stock (inventari)', 'restock', a.restock || 0, 'type="number" min="0" step="1"')}
       <p class="mute" style="margin:-8px 0 14px;font-size:12px">Les cel·les de l'inventari es pinten de color quan el stock és ≤ aquest valor. Posa 0 per desactivar.</p>
       <div class="f"><label for="aNot">Text al peu de cada factura</label><textarea id="aNot" data-s="notas" placeholder="Ex. Gràcies per la teva confiança.">${esc(a.notas)}</textarea></div></div>
+      <div class="card"><h2>Preus de fira</h2>
+      <p class="mute" style="margin-bottom:12px">Preus de venda al públic (IVA inclòs) que s'ompliran automàticament a les fires.</p>
+      ${D.tipos.length ? `<table><thead><tr><th>Tipus</th><th style="width:140px" class="r">Preu (€)</th></tr></thead><tbody>
+      ${D.tipos.map(t => `<tr><td>${esc(t.nombre)}</td><td class="r"><input type="number" step="0.01" min="0" data-pf="${t.id}" value="${(D.ajustes.preusFira && D.ajustes.preusFira[t.id]) || ''}" placeholder="0.00" style="width:120px;text-align:right"></td></tr>`).join('')}
+      </tbody></table>` : `<p class="mute">Afegeix tipus a l'inventari primer.</p>`}
+      </div>
       <div class="card"><h2>Còpies de seguretat</h2>
         <p class="mute" style="margin-bottom:12px">Descarrega totes les teves dades com a fitxer JSON. Si cal, pots restaurar-les des d'un fitxer anterior.</p>
         <div class="row" style="align-items:center;gap:10px">
@@ -973,7 +979,9 @@ const A = {
     const venuts = (fi.vendes || []).filter(v => v.tipusId === tid).reduce((s, v) => s + num(v.cant), 0);
     const disp = getS(tid, fi.lloc) - venuts;
     if (cant > disp) { const t = D.tipos.find(x => x.id === tid); return toast(`Només queden ${disp} unitats de «${t ? t.nombre : '?'}»`, 'err'); }
-    fi.vendes.push({ tipusId: tid, cant, preu });
+    const existing = fi.vendes.find(v => v.tipusId === tid);
+    if (existing) { existing.cant = num(existing.cant) + cant; if (preu > 0) existing.preu = preu; }
+    else fi.vendes.push({ tipusId: tid, cant, preu });
     guardar(); render(); toast('Venda afegida');
   },
   fireDelVenda: b => {
@@ -1194,6 +1202,13 @@ document.addEventListener('change', e => {
     const fi = (D.fires || []).find(x => x.estat === 'obert');
     if (fi && fi.vendes[+d.fp]) { fi.vendes[+d.fp].preu = num(t.value); guardar(); render(); }
   }
+  else if (d.pf) {
+    if (!D.ajustes.preusFira) D.ajustes.preusFira = {};
+    const v = num(t.value);
+    if (v > 0) D.ajustes.preusFira[d.pf] = v;
+    else delete D.ajustes.preusFira[d.pf];
+    guardar();
+  }
 });
 
 /* ============ Navegación ============ */
@@ -1214,7 +1229,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const DADES_DEFECTE = () => ({
   ajustes: {
     emisor: { nombre: '', nif: '', direccion: '', email: '', telefono: '', iban: '' },
-    iva: 21, irpf: 15, notas: '', restock: 5
+    iva: 21, irpf: 15, notas: '', restock: 5, preusFira: {}
   },
   lugares: [
     { id: 'casa', nombre: 'Casa' },
