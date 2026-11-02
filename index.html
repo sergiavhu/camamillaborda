@@ -312,14 +312,14 @@ function toast(msg, tipo) {
 const guardar = () => api.guardar(D);
 
 /* ============ Famílies de producte (per preus de fira) ============ */
-const FAMILIES_FIRA = ['A3', 'A4', 'A5', 'A5 Postal', 'A6', 'A6 Postal', 'Postal', 'Llibreta', 'Iman', 'Punt'];
+const FAMILIES_FIRA = ['A3', 'A4', 'A5', 'A5 Postal', 'A6', 'A6 Postal', 'Llibreta', 'Iman', 'Punt'];
 function familiaDeNom(nom) {
   const n = nom.toLowerCase();
   const tePostal = n.includes('postal');
   const m = n.match(/\ba([3-6])\b/);
   if (m && tePostal) return 'A' + m[1] + ' Postal';
   if (m) return 'A' + m[1];
-  if (tePostal) return 'Postal';
+
   if (n.includes('llibreta')) return 'Llibreta';
   if (n.includes('iman') || n.includes('imán') || n.includes('imant')) return 'Iman';
   if (n.includes('punt')) return 'Punt';
