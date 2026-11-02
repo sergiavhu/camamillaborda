@@ -190,6 +190,7 @@ tbody tr:hover{background:#fafbfd}
   <button class="nav" data-a="ir" data-v="facturas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z M14 2v6h6 M9 13h8 M9 17h8"/></svg>Factures</button>
   <button class="nav" data-a="ir" data-v="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18 M7 15h4"/></svg>Despeses</button>
   <button class="nav" data-a="ir" data-v="encarrecs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 5h6 M9 14l2 2 4-4"/></svg>Encàrrecs</button>
+  <button class="nav" data-a="ir" data-v="fires"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6 M9 6V4h6v2"/><path d="M10 11h4 M12 9v4"/></svg>Fires</button>
   <button class="nav" data-a="ir" data-v="resumen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10 M10 20V4 M16 20v-8 M22 20H2"/></svg>Resum</button>
   <div class="sp"></div>
   <button class="nav" data-a="ir" data-v="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Les meves dades</button>
@@ -226,7 +227,7 @@ let gastoNuevo = { fecha: '', concepto: '', categoria: '', importe: '', iva: '',
 let rango = null;
 let filtroInv = '', filtroFac = '', filtroGas = '', filtroEnc = '';
 let encTab = 'pendents';
-let vendaItems = [], vendaLlugar = '', vendaClient = '';
+let filtroFires = '';
 
 function descarregarCSV(nom, capçaleres, files) {
   const csvEsc = v => { const s = String(v ?? '').replace(/"/g, '""'); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s; };
@@ -362,7 +363,6 @@ function vInventario() {
   const q = filtroInv.toLowerCase();
   const T = q ? T0.filter(t => t.nombre.toLowerCase().includes(q)) : T0;
   const lim = num(D.ajustes.restock || 0);
-  if (T0.length && L.length && !vendaItems.length) vendaItems.push({ tipusId: T0[0].id, cant: 1, preu: '' });
   const tabla = T0.length && L.length ? `
   <div class="card scroll">${lim > 0 ? `<div class="leg" style="margin-bottom:8px"><span><i style="background:#ef9a9a"></i>Sense estoc</span><span><i style="background:#ffe082"></i>≤ ${lim} (re-stock)</span><span><i style="background:#a5d6a7"></i>Bé</span></div>` : ''}
   <table class="inv"><thead><tr><th>Tipus d'il·lustració</th>
@@ -383,24 +383,7 @@ function vInventario() {
   <div class="grid g2">
     <div class="card"><h2>Afegir tipus d'il·lustració</h2><div class="row"><div class="grow"><label for="nTipo">Nom</label><input id="nTipo" placeholder="Ex. Làmines A5" data-enter="#bTipo"></div><button class="btn pri" id="bTipo" data-a="addTipo">Afegir tipus</button></div></div>
     <div class="card"><h2>Afegir lloc</h2><div class="row"><div class="grow"><label for="nLugar">Nom</label><input id="nLugar" placeholder="Ex. Fira de Nadal" data-enter="#bLugar"></div><button class="btn pri" id="bLugar" data-a="addLugar">Afegir lloc</button></div></div>
-  </div>
-  ${T0.length && L.length ? `<div class="card"><h2>Venda ràpida</h2>
-    <p class="mute" style="margin-bottom:14px">Registra una venda, descompta l'estoc i crea una factura.</p>
-    <div class="grid g2" style="margin-bottom:14px">
-      <div><label for="vLloc">Lloc de sortida</label><select id="vLloc" data-vd="lloc">${L.map(l => `<option value="${l.id}"${l.id === (vendaLlugar || L[0].id) ? ' selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select></div>
-      <div><label for="vCli">Client</label><input id="vCli" data-vd="client" list="vClients" placeholder="Nom del client o fira" value="${esc(vendaClient)}"><datalist id="vClients">${[...new Set(D.facturas.map(f => f.cliente.nombre))].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
-    </div>
-    <div class="scroll"><table class="lines"><thead><tr><th>Il·lustració</th><th style="width:80px">Quant.</th><th style="width:110px">Preu unit.</th><th class="r" style="width:100px">Import</th><th style="width:40px"></th></tr></thead><tbody>
-    ${vendaItems.map((v, i) => `<tr>
-      <td><select data-vi="${i}" data-vk="tipusId">${T0.map(t => `<option value="${t.id}"${t.id === v.tipusId ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('')}</select></td>
-      <td><input type="number" min="1" data-vi="${i}" data-vk="cant" value="${v.cant}"></td>
-      <td><input type="number" step="0.01" min="0" data-vi="${i}" data-vk="preu" value="${esc(v.preu)}" placeholder="0.00"></td>
-      <td class="r">${eur(num(v.cant) * num(v.preu))}</td>
-      <td>${vendaItems.length > 1 ? `<button class="x" data-a="delVendaLinea" data-i="${i}" title="Treure">×</button>` : ''}</td>
-    </tr>`).join('')}
-    </tbody></table></div>
-    <div class="row" style="margin-top:10px"><button class="btn sm" data-a="addVendaLinea">+ Afegir línia</button><div class="sp"></div><button class="btn pri" data-a="facturarVenda">Descomptar estoc i crear factura</button></div>
-  </div>` : ''}`;
+  </div>`;
 }
 
 function vFacturas() {
@@ -571,6 +554,67 @@ function vEncarrecs() {
       </div>
     </div>`;
   }).join('') : `<div class="card empty">${q ? 'Cap encàrrec coincideix amb la cerca.' : (encTab === 'pendents' ? 'No tens encàrrecs pendents. Afegeix-ne un a dalt.' : 'Encara no has finalitzat cap encàrrec.')}</div>`}`;
+}
+
+function fireTotal(fi) { return r2((fi.vendes || []).reduce((s, v) => s + num(v.cant) * num(v.preu), 0)); }
+
+function vFires() {
+  if (!D.fires) D.fires = [];
+  const T0 = D.tipos, L = D.lugares;
+  const obert = D.fires.find(f => f.estat === 'obert');
+  const tancades = D.fires.filter(f => f.estat === 'tancat').sort((a, b) => b.data.localeCompare(a.data));
+  const q = filtroFires.toLowerCase();
+  const tancFilt = q ? tancades.filter(f => f.nom.toLowerCase().includes(q) || f.client.toLowerCase().includes(q)) : tancades;
+
+  const formNova = !obert ? `<div class="card"><h2>Nova fira</h2>
+    <div class="grid g3">
+      <div><label for="fiNom">Nom de l'esdeveniment</label><input id="fiNom" placeholder="Ex. Fira de Sant Jordi"></div>
+      <div><label for="fiData">Data</label><input id="fiData" type="date" value="${hoy()}"></div>
+      <div><label for="fiLloc">Lloc (d'on surt l'estoc)</label><select id="fiLloc">${L.map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('')}</select></div>
+      <div><label for="fiClient">Client / facturar a nom de</label><input id="fiClient" list="fiClients" placeholder="Nom per la factura"><datalist id="fiClients">${[...new Set(D.facturas.map(f => f.cliente.nombre))].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+    </div>
+    <p style="margin-top:14px"><button class="btn pri" data-a="fireNova">Obrir fira</button></p>
+  </div>` : '';
+
+  const fullObert = obert ? (() => {
+    const lloc = obert.lloc;
+    const llocNom = (L.find(l => l.id === lloc) || {}).nombre || lloc;
+    const totalVendes = fireTotal(obert);
+    return `<div class="card" style="border-left:4px solid var(--blue)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+        <div><h2>${esc(obert.nom)}</h2><p class="mute">${fecha(obert.data)} · Estoc de: ${esc(llocNom)}${obert.client ? ' · Client: ' + esc(obert.client) : ''}</p></div>
+        <div style="text-align:right"><span class="mute">Total vendes</span><br><b style="font-size:22px;color:var(--blue)">${eur(totalVendes)}</b></div>
+      </div>
+      <div class="scroll"><table class="lines"><thead><tr><th>Il·lustració</th><th style="width:80px">Quant.</th><th style="width:110px">Preu unit.</th><th class="r" style="width:100px">Import</th><th style="width:40px"></th></tr></thead><tbody>
+      ${(obert.vendes || []).map((v, i) => `<tr>
+        <td><select data-fv="${i}" data-fk="tipusId">${T0.map(t => `<option value="${t.id}"${t.id === v.tipusId ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('')}</select></td>
+        <td><input type="number" min="1" data-fv="${i}" data-fk="cant" value="${v.cant}"></td>
+        <td><input type="number" step="0.01" min="0" data-fv="${i}" data-fk="preu" value="${esc(v.preu)}" placeholder="0.00"></td>
+        <td class="r">${eur(num(v.cant) * num(v.preu))}</td>
+        <td><button class="x" data-a="fireDelVenda" data-i="${i}" title="Treure">×</button></td>
+      </tr>`).join('')}
+      </tbody></table></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" data-a="fireAddVenda">+ Afegir venda</button>
+        <div class="sp"></div>
+        <button class="btn bad" data-a="fireCancelar">Cancel·lar fira</button>
+        <button class="btn pri" data-a="fireTancar">Tancar fira, descomptar estoc i crear factura</button>
+      </div>
+    </div>`;
+  })() : '';
+
+  return `
+  <header class="top"><div><h1>Fires</h1><p>Crea un esdeveniment, afegeix vendes al llarg del dia i tanca per descomptar estoc i facturar.</p></div></header>
+  ${!T0.length || !L.length ? '<div class="card empty">Necessites almenys un tipus d\'il·lustració i un lloc a l\'inventari.</div>' : `${formNova}${fullObert}`}
+  ${tancades.length > 3 ? `<div style="margin-bottom:14px"><input class="filtre" data-fil="fires" placeholder="Buscar fira…" value="${esc(filtroFires)}"></div>` : ''}
+  ${tancFilt.length ? `<div class="card scroll"><h2>Historial de fires</h2>
+    <table><thead><tr><th>Fira</th><th>Data</th><th>Client</th><th class="r">Articles</th><th class="r">Total</th></tr></thead><tbody>
+    ${tancFilt.map(f => { const arts = (f.vendes || []).reduce((s, v) => s + num(v.cant), 0); return `<tr>
+      <td><b>${esc(f.nom)}</b></td><td>${fecha(f.data)}</td><td>${esc(f.client)}</td>
+      <td class="r">${arts}</td><td class="r"><b>${eur(fireTotal(f))}</b></td>
+      </tr>`; }).join('')}
+    </tbody></table>
+  </div>` : (D.fires.length <= (obert ? 1 : 0) ? '<div class="card empty">Encara no has tancat cap fira.</div>' : '')}`;
 }
 
 function presetRango(p) {
@@ -776,36 +820,6 @@ const A = {
     D.lugares = D.lugares.filter(x => x.id !== l.id);
     Object.values(D.stock).forEach(o => delete o[l.id]); guardar(); render();
   },
-  /* venda ràpida */
-  addVendaLinea: () => {
-    vendaItems.push({ tipusId: D.tipos.length ? D.tipos[0].id : '', cant: 1, preu: '' });
-    render();
-  },
-  delVendaLinea: b => {
-    if (vendaItems.length > 1) { vendaItems.splice(+b.dataset.i, 1); render(); }
-  },
-  facturarVenda: () => {
-    if (!vendaClient.trim()) return toast('Escriu el nom del client', 'err');
-    const lineas = vendaItems.filter(v => v.tipusId && num(v.cant) > 0 && num(v.preu) > 0);
-    if (!lineas.length) return toast('Afegeix almenys una línia amb quantitat i preu', 'err');
-    const lloc = vendaLlugar || (D.lugares.length ? D.lugares[0].id : '');
-    const byType = {};
-    for (const v of lineas) byType[v.tipusId] = (byType[v.tipusId] || 0) + num(v.cant);
-    for (const [tid, total] of Object.entries(byType)) {
-      const disp = getS(tid, lloc);
-      if (total > disp) { const t = D.tipos.find(x => x.id === tid); return toast(`No hi ha prou estoc de «${t ? t.nombre : '?'}» (tens ${disp}, vols ${total})`, 'err'); }
-    }
-    const prev = D.facturas.map(x => x.cliente).find(c => c.nombre.toLowerCase() === vendaClient.trim().toLowerCase());
-    borrador = {
-      id: uid(), nuevo: true, numero: siguienteNumero(), fecha: hoy(), pago: '',
-      cliente: { nombre: vendaClient.trim(), nif: (prev && prev.nif) || '', direccion: (prev && prev.direccion) || '', email: (prev && prev.email) || '' },
-      lineas: lineas.map(v => { const t = D.tipos.find(x => x.id === v.tipusId); return { desc: t ? t.nombre : '', cant: num(v.cant), precio: num(v.preu) }; }),
-      iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: '',
-      _vendaDescompte: lineas.map(v => ({ tipusId: v.tipusId, cant: num(v.cant), lloc }))
-    };
-    vendaItems = []; vendaClient = '';
-    ir('factura');
-  },
   /* facturas */
   nuevaFactura: () => {
     borrador = { id: uid(), nuevo: true, numero: siguienteNumero(), fecha: hoy(), pago: '', cliente: { nombre: '', nif: '', direccion: '', email: '' },
@@ -922,6 +936,52 @@ const A = {
   encToggleEfectiu: b => {
     const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
     e.efectiu = !e.efectiu; guardar(); render();
+  },
+  /* fires */
+  fireNova: () => {
+    const nom = $('#fiNom').value.trim(), data = $('#fiData').value || hoy(), lloc = $('#fiLloc').value, client = $('#fiClient').value.trim();
+    if (!nom) return toast("Escriu el nom de l'esdeveniment", 'err');
+    if (!D.fires) D.fires = [];
+    if (D.fires.some(f => f.estat === 'obert')) return toast('Ja tens una fira oberta. Tanca-la primer.', 'err');
+    D.fires.push({ id: uid(), nom, data, lloc, client, estat: 'obert', vendes: [{ tipusId: D.tipos[0].id, cant: 1, preu: '' }] });
+    guardar(); render(); toast('Fira oberta — afegeix vendes!');
+  },
+  fireAddVenda: () => {
+    const fi = (D.fires || []).find(f => f.estat === 'obert'); if (!fi) return;
+    fi.vendes.push({ tipusId: D.tipos.length ? D.tipos[0].id : '', cant: 1, preu: '' });
+    guardar(); render();
+  },
+  fireDelVenda: b => {
+    const fi = (D.fires || []).find(f => f.estat === 'obert'); if (!fi) return;
+    fi.vendes.splice(+b.dataset.i, 1);
+    guardar(); render();
+  },
+  fireCancelar: () => {
+    const fi = (D.fires || []).find(f => f.estat === 'obert'); if (!fi) return;
+    if (!confirm(`Cancel·lar la fira «${fi.nom}»? No es descomptarà res ni es crearà factura.`)) return;
+    D.fires = D.fires.filter(f => f.id !== fi.id);
+    guardar(); render(); toast('Fira cancel·lada');
+  },
+  fireTancar: () => {
+    const fi = (D.fires || []).find(f => f.estat === 'obert'); if (!fi) return;
+    const lineas = fi.vendes.filter(v => v.tipusId && num(v.cant) > 0 && num(v.preu) > 0);
+    if (!lineas.length) return toast('Afegeix almenys una venda amb quantitat i preu', 'err');
+    const byType = {};
+    for (const v of lineas) byType[v.tipusId] = (byType[v.tipusId] || 0) + num(v.cant);
+    for (const [tid, total] of Object.entries(byType)) {
+      const disp = getS(tid, fi.lloc);
+      if (total > disp) { const t = D.tipos.find(x => x.id === tid); return toast(`No hi ha prou estoc de «${t ? t.nombre : '?'}» (tens ${disp}, vols ${total})`, 'err'); }
+    }
+    for (const [tid, total] of Object.entries(byType)) setS(tid, fi.lloc, getS(tid, fi.lloc) - total);
+    fi.vendes = lineas; fi.estat = 'tancat';
+    const prev = D.facturas.map(x => x.cliente).find(c => c.nombre.toLowerCase() === (fi.client || fi.nom).toLowerCase());
+    borrador = {
+      id: uid(), nuevo: true, numero: siguienteNumero(), fecha: fi.data, pago: '',
+      cliente: { nombre: fi.client || fi.nom, nif: (prev && prev.nif) || '', direccion: (prev && prev.direccion) || '', email: (prev && prev.email) || '' },
+      lineas: lineas.map(v => { const t = D.tipos.find(x => x.id === v.tipusId); return { desc: (t ? t.nombre : '') + ' (' + fi.nom + ')', cant: num(v.cant), precio: num(v.preu) }; }),
+      iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: ''
+    };
+    guardar(); ir('factura'); toast('Estoc descomptat — revisa la factura i desa-la');
   },
   /* resumen y datos */
   preset: b => { rango = presetRango(b.dataset.p); render(); },
@@ -1049,10 +1109,6 @@ async function guardarFactura(conPdf) {
   const lineas = f.lineas.filter(l => l.desc.trim()).map(l => ({ desc: l.desc.trim(), cant: num(l.cant), precio: num(l.precio) }));
   if (!lineas.length) return toast('Afegeix almenys un concepte amb descripció', 'err');
   f.lineas = lineas; f.numero = f.numero.trim(); f.iva = num(f.iva); f.irpf = num(f.irpf);
-  if (f._vendaDescompte) {
-    for (const v of f._vendaDescompte) setS(v.tipusId, v.lloc, getS(v.tipusId, v.lloc) - v.cant);
-    delete f._vendaDescompte;
-  }
   const i = D.facturas.findIndex(x => x.id === f.id);
   delete f.nuevo;
   if (i >= 0) D.facturas[i] = f; else D.facturas.push(f);
@@ -1077,7 +1133,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const t = e.target, d = t.dataset;
   if (d.fil) {
-    const map = { inv: v => filtroInv = v, fac: v => filtroFac = v, gas: v => filtroGas = v, enc: v => filtroEnc = v };
+    const map = { inv: v => filtroInv = v, fac: v => filtroFac = v, gas: v => filtroGas = v, enc: v => filtroEnc = v, fires: v => filtroFires = v };
     if (map[d.fil]) { map[d.fil](t.value); render(); const el = $(`[data-fil="${d.fil}"]`); if (el) { el.focus(); el.selectionStart = el.selectionEnd = t.selectionStart; } }
     return;
   }
@@ -1089,9 +1145,9 @@ document.addEventListener('input', e => {
     updTotales();
   } else if (vista === 'gastos' && d.g) {
     gastoNuevo[d.g] = t.value;
-  } else if (vista === 'inventario') {
-    if (d.vd === 'client') vendaClient = t.value;
-    else if (d.vi !== undefined && d.vk) vendaItems[+d.vi][d.vk] = t.value;
+  } else if (vista === 'fires' && d.fv !== undefined && d.fk) {
+    const fi = (D.fires || []).find(x => x.estat === 'obert');
+    if (fi && fi.vendes[+d.fv]) { fi.vendes[+d.fv][d.fk] = t.value; }
   }
 });
 
@@ -1110,12 +1166,14 @@ document.addEventListener('change', e => {
     const prev = D.facturas.map(x => x.cliente).find(c => c.nombre.toLowerCase() === t.value.trim().toLowerCase());
     if (prev) { ['nif', 'direccion', 'email'].forEach(k => { if (!borrador.cliente[k]) borrador.cliente[k] = prev[k]; }); render(); }
   }
-  else if (d.vd === 'lloc') { vendaLlugar = t.value; }
-  else if (d.vi !== undefined && d.vk) { vendaItems[+d.vi][d.vk] = t.value; }
+  else if (vista === 'fires' && d.fv !== undefined && d.fk) {
+    const fi = (D.fires || []).find(x => x.estat === 'obert');
+    if (fi && fi.vendes[+d.fv]) { fi.vendes[+d.fv][d.fk] = t.value; }
+  }
 });
 
 /* ============ Navegación ============ */
-const VISTAS = { inicio: vInicio, inventario: vInventario, facturas: vFacturas, factura: vForm, gastos: vGastos, encarrecs: vEncarrecs, resumen: vResumen, datos: vDatos };
+const VISTAS = { inicio: vInicio, inventario: vInventario, facturas: vFacturas, factura: vForm, gastos: vGastos, encarrecs: vEncarrecs, fires: vFires, resumen: vResumen, datos: vDatos };
 function render() {
   const sc = $('#main').scrollTop;
   $('#main').innerHTML = VISTAS[vista]();
@@ -1123,7 +1181,7 @@ function render() {
   document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === (vista === 'factura' ? 'facturas' : vista)));
   if (vista === 'factura') updTotales();
 }
-function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = filtroEnc = ''; render(); $('#main').scrollTop = 0; }
+function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = filtroEnc = filtroFires = ''; render(); $('#main').scrollTop = 0; }
 
 /* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
 const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co';  // Només el domini, sense /rest/v1/
@@ -1145,7 +1203,7 @@ const DADES_DEFECTE = () => ({
     { id: 't3', nombre: 'Làmines A3' },
     { id: 't4', nombre: 'Postals' }
   ],
-  stock: {}, facturas: [], gastos: [], encarrecs: []
+  stock: {}, facturas: [], gastos: [], encarrecs: [], fires: []
 });
 
 function _mergeDefecte(d) {
