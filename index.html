@@ -97,6 +97,7 @@ tbody tr:hover{background:#fafbfd}
 /* Encàrrecs */
 .enc-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}
 .enc-pagat{background:#e8f5e9;color:#1f8a5b}.enc-parcial{background:#fff8e1;color:#a67c00}.enc-pendent{background:#ffebee;color:#c93a3a}
+.enc-efectiu{background:#e3f2fd;color:#1565c0}
 .enc-timer{display:inline-flex;align-items:center;gap:6px;font-family:Bahnschrift,'Segoe UI',sans-serif;font-size:16px;font-weight:600}
 .enc-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid var(--line)}
 .enc-tabs button{border:0;background:none;padding:10px 18px;font-weight:600;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
@@ -511,6 +512,7 @@ function vEncarrecs() {
       <div><label for="ecPreu"><span id="ecPreuLbl">Preu total (€)</span></label><input id="ecPreu" type="number" step="0.01" min="0" placeholder="0.00"></div>
       <div><label for="ecEntrega">Data d'entrega</label><input id="ecEntrega" type="date"></div>
       <div><label for="ecNotes">Notes</label><input id="ecNotes" placeholder="Opcional"></div>
+      <div style="display:flex;align-items:center;gap:8px;padding-top:20px"><input type="checkbox" id="ecEfectiu" style="width:auto"><label for="ecEfectiu" style="margin:0;cursor:pointer;font-weight:normal">Pagament en efectiu</label></div>
     </div>
     <p style="margin-top:14px"><button class="btn pri" data-a="addEncarrec">Afegir encàrrec</button></p>
   </div>
@@ -524,7 +526,7 @@ function vEncarrecs() {
     return `<div class="card" style="position:relative">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div><h2>${esc(e.descripcio)}</h2><p class="mute">${esc(e.client)}${e.dataCreacio ? ' · Creat ' + fecha(e.dataCreacio) : ''}${e.dataEntrega && e.estat !== 'finalitzat' ? (() => { const d = Math.ceil((new Date(e.dataEntrega) - new Date()) / 86400000); return d < 0 ? ' · <b style="color:var(--bad)">Entrega passada (' + fecha(e.dataEntrega) + ')</b>' : d <= 7 ? ' · <b style="color:#a67c00">Entrega ' + fecha(e.dataEntrega) + ' (' + d + ' dies)</b>' : ' · Entrega ' + fecha(e.dataEntrega); })() : (e.dataEntrega ? ' · Entrega ' + fecha(e.dataEntrega) : '')}${e.dataFi ? ' · Finalitzat ' + fecha(e.dataFi) : ''}</p></div>
-        <div style="text-align:right">${encPagamentBadge(e)}</div>
+        <div style="text-align:right">${e.efectiu ? '<span class="enc-badge enc-efectiu">Efectiu</span> ' : ''}${encPagamentBadge(e)}</div>
       </div>
       <div class="grid g4" style="margin-top:14px">
         <div><span class="mute">${e.tipus === 'hores' ? 'Preu/hora' : 'Preu fix'}</span><br><b>${eur(num(e.preu))}</b></div>
@@ -538,9 +540,11 @@ function vEncarrecs() {
           ${e.tipus === 'hores' ? `<button class="btn sm" data-a="encAfegirHores" data-id="${e.id}">+ Hores</button>` : ''}
           <button class="btn sm" data-a="encPagament" data-id="${e.id}">Registrar pagament</button>
           <button class="btn sm" data-a="encEditar" data-id="${e.id}">Editar</button>
+          <button class="btn sm${e.efectiu ? ' pri' : ''}" data-a="encToggleEfectiu" data-id="${e.id}">${e.efectiu ? 'Efectiu ✓' : 'Efectiu'}</button>
           <button class="btn sm pri" data-a="encFinalitzar" data-id="${e.id}">Finalitzar</button>
         ` : `
           <button class="btn sm" data-a="encPagament" data-id="${e.id}">Registrar pagament</button>
+          <button class="btn sm${e.efectiu ? ' pri' : ''}" data-a="encToggleEfectiu" data-id="${e.id}">${e.efectiu ? 'Efectiu ✓' : 'Efectiu'}</button>
           <button class="btn sm pri" data-a="encFacturar" data-id="${e.id}">Crear factura</button>
           <button class="btn sm" data-a="encReobrir" data-id="${e.id}">Reobrir</button>
         `}
@@ -565,8 +569,11 @@ function presetRango(p) {
 function vResumen() {
   if (!rango) rango = presetRango('trim');
   const en = d => (!rango.desde || d >= rango.desde) && (!rango.hasta || d <= rango.hasta);
-  const facs = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const facsAll = D.facturas.filter(f => en(f.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const facs = facsAll.filter(f => !f.efectiu);
   const gas = D.gastos.filter(g => en(g.fecha)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const encCash = (D.encarrecs || []).filter(e => e.efectiu && num(e.pagat) > 0 && en(e.dataCreacio));
+  const cashTotal = r2(encCash.reduce((s, e) => s + num(e.pagat), 0));
   const S = facs.reduce((s, f) => { const c = calc(f); s.base += c.base; s.iva += c.iva; s.irpf += c.irpf; s.total += c.total; return s; }, { base: 0, iva: 0, irpf: 0, total: 0 });
   const gTot = gas.reduce((s, g) => s + num(g.importe), 0);
   const gIva = gas.reduce((s, g) => s + num(g.iva), 0);
@@ -583,11 +590,11 @@ function vResumen() {
   const nomMes = k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString('ca-ES', { month: 'short', year: '2-digit' }); };
 
   const chip = (p, t) => `<button class="chip" data-a="preset" data-p="${p}">${t}</button>`;
-  const teDades = facs.length || gas.length;
+  const teDades = facsAll.length || gas.length;
   return `
   <header class="top"><div><h1>Resum</h1><p>Factures i despeses del període que triïs.</p></div></header>
   ${teDades ? `<div class="row" style="margin-bottom:18px;flex-wrap:wrap;align-items:center">
-    ${facs.length ? '<button class="btn" data-a="csvFactures">CSV factures</button><button class="btn" data-a="pdfFactures">PDF totes les factures</button><button class="btn" data-a="zipFactures">ZIP factures (HTML)</button>' : ''}
+    ${facsAll.length ? '<button class="btn" data-a="csvFactures">CSV factures</button><button class="btn" data-a="pdfFactures">PDF totes les factures</button><button class="btn" data-a="zipFactures">ZIP factures (HTML)</button>' : ''}
     ${gas.length ? '<button class="btn" data-a="csvDespeses">CSV despeses</button><button class="btn" data-a="zipDespeses">ZIP tiquets despeses</button>' : ''}
   </div>` : ''}
   <div class="card">
@@ -601,6 +608,15 @@ function vResumen() {
     <div class="kpi ${benef >= 0 ? 'pos' : 'neg'}"><span>Benefici brut</span><span class="num">${eur(benef)}</span><span class="mute">ingressos − despeses</span></div>
     <div class="kpi ${benefNet >= 0 ? 'pos' : 'neg'}"><span>Benefici net</span><span class="num">${eur(benefNet)}</span><span class="mute">després d'IRPF retingut (${eur(S.irpf)})</span></div>
   </div>
+  ${cashTotal > 0 ? `<div class="card" style="margin-bottom:18px;border-left:4px solid #1565c0">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:8px">
+      <div><h2>Pagaments en efectiu</h2><p class="mute">Aquests imports no es compten en els beneficis generals.</p></div>
+      <div style="text-align:right"><span class="mute">Total efectiu</span><br><b style="font-size:22px;color:#1565c0">${eur(cashTotal)}</b></div>
+    </div>
+    <table><thead><tr><th>Client</th><th>Descripció</th><th class="r">Cobrat</th><th class="r">Total</th><th>Estat</th></tr></thead><tbody>
+    ${encCash.map(e => `<tr><td>${esc(e.client)}</td><td>${esc(e.descripcio)}</td><td class="r"><b>${eur(num(e.pagat))}</b></td><td class="r">${eur(encTotal(e))}</td><td>${e.estat === 'finalitzat' ? '<span class="enc-badge enc-pagat">Finalitzat</span>' : '<span class="enc-badge enc-parcial">En curs</span>'}</td></tr>`).join('')}
+    </tbody></table>
+  </div>` : ''}
   <div class="mini">
     <div><span class="mute">Facturat total</span><b>${eur(S.total)}</b></div>
     <div><span class="mute">IVA repercutit</span><b>${eur(S.iva)}</b></div>
@@ -792,7 +808,7 @@ const A = {
     if (!desc) return toast('Descriu el treball', 'err');
     if (preu <= 0) return toast('Indica el preu', 'err');
     if (!D.encarrecs) D.encarrecs = [];
-    D.encarrecs.push({ id: uid(), client: cli, descripcio: desc, tipus, preu, hores: 0, pagat: 0, estat: 'pendent', dataCreacio: hoy(), dataEntrega: entrega, dataFi: '', notes });
+    D.encarrecs.push({ id: uid(), client: cli, descripcio: desc, tipus, preu, hores: 0, pagat: 0, estat: 'pendent', dataCreacio: hoy(), dataEntrega: entrega, dataFi: '', notes, efectiu: $('#ecEfectiu').checked });
     guardar(); render(); toast('Encàrrec afegit');
   },
   encAfegirHores: b => {
@@ -845,7 +861,7 @@ const A = {
       lineas: e.tipus === 'hores'
         ? [{ desc: e.descripcio, cant: num(e.hores), precio: num(e.preu) }]
         : [{ desc: e.descripcio, cant: 1, precio: t }],
-      iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: ''
+      iva: D.ajustes.iva, irpf: D.ajustes.irpf, notas: '', efectiu: e.efectiu || false
     };
     ir('factura');
   },
@@ -853,6 +869,10 @@ const A = {
     const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
     if (!confirm(`Eliminar l'encàrrec «${e.descripcio}»?`)) return;
     D.encarrecs = D.encarrecs.filter(x => x.id !== e.id); guardar(); render();
+  },
+  encToggleEfectiu: b => {
+    const e = D.encarrecs.find(x => x.id === b.dataset.id); if (!e) return;
+    e.efectiu = !e.efectiu; guardar(); render();
   },
   /* resumen y datos */
   preset: b => { rango = presetRango(b.dataset.p); render(); },
