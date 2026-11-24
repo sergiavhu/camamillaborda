@@ -309,7 +309,26 @@ function toast(msg, tipo) {
   t.textContent = msg; t.className = tipo === 'err' ? 'err' : ''; t.style.display = 'block';
   clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 2800);
 }
-const guardar = () => api.guardar(D);
+let _guardantPromesa = Promise.resolve();
+let _guardantPendent = false;
+function guardar() {
+  _guardantPendent = true;
+  _guardantPromesa = _guardantPromesa.then(async () => {
+    if (!_guardantPendent) return;
+    _guardantPendent = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await api.guardar(D);
+        if (r instanceof Response && !r.ok) throw new Error(r.status);
+        return;
+      } catch (e) {
+        if (i < 2) await new Promise(ok => setTimeout(ok, 500 * (i + 1)));
+        else toast('Error desant — comprova la connexió', 'err');
+      }
+    }
+  });
+  return _guardantPromesa;
+}
 
 /* ============ Famílies de producte (per preus de fira) ============ */
 const FAMILIES_FIRA = ['A3', 'A4', 'A5', 'A5 Postal', 'A6', 'A6 Postal', 'Llibreta', 'Iman', 'Punt'];
