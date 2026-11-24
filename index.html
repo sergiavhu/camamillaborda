@@ -149,6 +149,10 @@ tbody tr:hover{background:#fafbfd}
 #modal img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;z-index:30;display:none;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 #toast.err{background:var(--bad)}
+#saveStatus{position:fixed;top:10px;right:14px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:16px;z-index:30;pointer-events:none;opacity:0;transition:opacity .3s}
+#saveStatus.saving{opacity:1;background:#fff3cd;color:#856404}
+#saveStatus.saved{opacity:1;background:#d4edda;color:#1f8a5b}
+#saveStatus.err{opacity:1;background:#ffebee;color:var(--bad)}
 
 /* Login */
 #login{display:flex;align-items:center;justify-content:center;height:100%;width:100%;position:fixed;inset:0;background:var(--bg);z-index:50}
@@ -199,6 +203,7 @@ tbody tr:hover{background:#fafbfd}
 <main id="main"></main>
 <div id="modal" data-a="cerrarModal"></div>
 <div id="toast"></div>
+<div id="saveStatus"></div>
 <div id="login">
   <div class="login-box">
     <h1>Gestor d'Estudi</h1>
@@ -311,19 +316,33 @@ function toast(msg, tipo) {
 }
 let _guardantPromesa = Promise.resolve();
 let _guardantPendent = false;
+let _dirty = false;
+let _saving = false;
+function _showSave(cls, txt) {
+  const el = $('#saveStatus'); if (!el) return;
+  el.textContent = txt; el.className = cls;
+  clearTimeout(_showSave.h);
+  if (cls === 'saved') _showSave.h = setTimeout(() => { el.className = ''; }, 2000);
+}
 function guardar() {
+  _dirty = true;
   _guardantPendent = true;
   _guardantPromesa = _guardantPromesa.then(async () => {
     if (!_guardantPendent) return;
     _guardantPendent = false;
+    _saving = true;
+    _showSave('saving', 'Desant…');
     for (let i = 0; i < 3; i++) {
       try {
         const r = await api.guardar(D);
         if (r instanceof Response && !r.ok) throw new Error(r.status);
+        _dirty = false;
+        _saving = false;
+        _showSave('saved', 'Desat ✓');
         return;
       } catch (e) {
         if (i < 2) await new Promise(ok => setTimeout(ok, 500 * (i + 1)));
-        else toast('Error desant — comprova la connexió', 'err');
+        else { _saving = false; _showSave('err', 'Error desant'); toast('Error desant — comprova la connexió', 'err'); }
       }
     }
   });
@@ -1217,6 +1236,7 @@ document.addEventListener('input', e => {
     else if (d.c) borrador.cliente[d.c] = t.value;
     else if (d.k) borrador.lineas[+d.l][d.k] = t.value;
     else return;
+    _dirty = true;
     updTotales();
   } else if (vista === 'gastos' && d.g) {
     gastoNuevo[d.g] = t.value;
@@ -1260,7 +1280,12 @@ function render() {
   document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === (vista === 'factura' ? 'facturas' : vista)));
   if (vista === 'factura') updTotales();
 }
-function ir(v) { vista = v; filtroInv = filtroFac = filtroGas = filtroEnc = filtroFires = ''; render(); $('#main').scrollTop = 0; }
+function ir(v) {
+  if (_saving && !confirm('S\'estan desant canvis. Vols sortir igualment?')) return;
+  if (_dirty && !_saving && !confirm('Hi ha canvis sense guardar. Vols sortir igualment?')) return;
+  vista = v; filtroInv = filtroFac = filtroGas = filtroEnc = filtroFires = ''; render(); $('#main').scrollTop = 0;
+}
+window.addEventListener('beforeunload', e => { if (_dirty || _saving) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ============ Configuració Supabase (OMPLE AQUESTES DUES LÍNIES) ============ */
 const SUPABASE_URL = 'https://jqpcvsddiycqfyqsvedw.supabase.co';  // Només el domini, sense /rest/v1/
